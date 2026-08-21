@@ -45,6 +45,7 @@ import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
 import com.v2ray.ang.util.Utils
+import com.v2ray.devicekit.Compat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -85,6 +86,9 @@ class SubEditActivity : BaseComponentActivity() {
             return false
         }
         if (subItem.url.isNotEmpty()) {
+            // Expand happ://crypt... links so subscriptions are stored as plain https URLs
+            subItem.url = Compat.decryptSubscriptionUrl(subItem.url) ?: subItem.url
+
             if (!Utils.isValidUrl(subItem.url)) {
                 toast(R.string.toast_invalid_url)
                 return false

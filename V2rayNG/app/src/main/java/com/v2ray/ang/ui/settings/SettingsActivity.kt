@@ -45,6 +45,8 @@ import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.ThemeManager
 import com.v2ray.ang.ui.compose.verticalScrollbar
 import com.v2ray.ang.util.Utils
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 
 class SettingsActivity : BaseComponentActivity() {
 
@@ -73,6 +75,7 @@ fun SettingsScreen(
 ) {
     val scrollState = rememberScrollState()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var uiSettingsExpanded by rememberSaveable { mutableStateOf(true) }
     var vpnSettingsExpanded by rememberSaveable { mutableStateOf(true) }
     var coreSettingsExpanded by rememberSaveable { mutableStateOf(true) }
@@ -674,6 +677,10 @@ fun SettingsScreen(
                             lanSharing = newValue
                         }
                     }
+                )
+                SettingsMenuItem(
+                    title = stringResource(R.string.title_devicekit_settings),
+                    onClick = { context.startActivity(Intent(context, DeviceKitSettingsActivity::class.java)) }
                 )
             }
 

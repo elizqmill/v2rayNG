@@ -59,6 +59,10 @@ android {
             dimension = "distribution"
             buildConfigField("String", "DISTRIBUTION", "\"Play Store\"")
         }
+        create("general") {
+            dimension = "distribution"
+            buildConfigField("String", "DISTRIBUTION", "\"General\"")
+        }
     }
 
     sourceSets {
@@ -82,6 +86,7 @@ android {
     applicationVariants.all {
         val variant = this
         val isFdroid = variant.productFlavors.any { it.name == "fdroid" }
+        val isGeneral = variant.productFlavors.any { it.name == "general" }
         if (isFdroid) {
             val versionCodes =
                 mapOf(
@@ -99,6 +104,13 @@ android {
                     } else {
                         return@forEach
                     }
+                }
+        } else if (isGeneral) {
+            variant.outputs
+                .map { it as com.android.build.gradle.internal.api.ApkVariantOutputImpl }
+                .forEach { output ->
+                    val abi = output.getFilter("ABI") ?: "universal"
+                    output.outputFileName = "v2rayNG_${variant.versionName}_${abi}.apk"
                 }
         } else {
             val versionCodes =
@@ -154,6 +166,12 @@ android {
 dependencies {
     // Core Libraries
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+
+    // DeviceKit add-on (git submodule at V2rayNG/devicekit)
+    implementation(project(":devicekit"))
+
+    // AndroidX Preference (for DeviceKit settings host)
+    implementation("androidx.preference:preference-ktx:1.2.1")
 
     // AndroidX Core Libraries
     implementation(libs.androidx.core.ktx)

@@ -1,9 +1,12 @@
 package com.v2ray.ang.util
 
+import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.AppConfig.LOOPBACK
 import com.v2ray.ang.BuildConfig
 import com.v2ray.ang.dto.UrlContentRequest
+import com.v2ray.devicekit.Compat
+import com.v2ray.devicekit.Kit
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -111,9 +114,10 @@ object HttpUtil {
      */
     fun getUrlContent(request: UrlContentRequest): String? {
         val url = request.url ?: return null
+        val effectiveUrl = Compat.decryptSubscriptionUrl(url) ?: url
         val client = buildOkHttpClient(request.timeout, request.httpPort, request.proxyUsername, request.proxyPassword, followRedirects = true)
         val requestBuilder = Request.Builder()
-            .url(url)
+            .url(effectiveUrl)
             .get()
             .header("Connection", "close")
         if (request.httpPort != 0 && !request.proxyUsername.isNullOrBlank() && !request.proxyPassword.isNullOrBlank()) {
@@ -144,25 +148,28 @@ object HttpUtil {
      */
     @Throws(IOException::class)
     fun getUrlContentWithUserAgent(request: UrlContentRequest): String {
-        var currentUrl = request.url
+        var currentUrl = request.url?.let { Compat.decryptSubscriptionUrl(it) ?: it }
         var redirects = 0
         val maxRedirects = 3
 
         while (redirects++ < maxRedirects) {
             if (currentUrl == null) continue
             val client = buildOkHttpClient(request.timeout, request.httpPort, request.proxyUsername, request.proxyPassword, followRedirects = false)
-            val finalUserAgent = if (request.userAgent.isNullOrBlank()) {
-                "v2rayNG/${BuildConfig.VERSION_NAME}"
-            } else {
-                request.userAgent
-            }
             val requestBuilder = Request.Builder()
                 .url(currentUrl)
                 .get()
-                .header("User-agent", finalUserAgent)
                 .header("Connection", "close")
 
             applyEmbeddedBasicAuthHeader(currentUrl, requestBuilder)
+
+            // Apply DeviceKit headers (custom User-Agent + HWID) from settings.
+            // The subscription's own User-Agent takes precedence when set.
+            Kit.headersFromSettings(
+                context = AngApplication.application,
+                subscriptionUserAgent = request.userAgent,
+                defaultUserAgent = "v2rayNG/${BuildConfig.VERSION_NAME}",
+                appVersionName = BuildConfig.VERSION_NAME,
+            ).forEach { (name, value) -> requestBuilder.header(name, value) }
 
 
             val headersMap = JsonUtil.parseHeadersToMap(request.requestHeaders)
@@ -274,9 +281,10 @@ object HttpUtil {
         targetFile: File
     ): Boolean {
         val url = request.url ?: return false
+        val effectiveUrl = Compat.decryptSubscriptionUrl(url) ?: url
         val client = buildOkHttpClient(request.timeout, request.httpPort, request.proxyUsername, request.proxyPassword, followRedirects = true)
         val requestBuilder = Request.Builder()
-            .url(url)
+            .url(effectiveUrl)
             .get()
             .header("Connection", "close")
         if (request.httpPort != 0 && !request.proxyUsername.isNullOrBlank() && !request.proxyPassword.isNullOrBlank()) {

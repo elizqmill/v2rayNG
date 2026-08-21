@@ -127,6 +127,9 @@
             android:name=".ui.settings.SettingsActivity"
             android:exported="false" />
         <activity
+            android:name=".ui.settings.DeviceKitSettingsActivity"
+            android:exported="false" />
+        <activity
             android:name=".ui.perappproxy.PerAppProxyActivity"
             android:exported="false" />
         <activity

@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.work.Configuration
 import androidx.work.WorkManager
+import com.google.android.material.color.DynamicColors
 import com.v2ray.ang.AppConfig.ANG_PACKAGE
 import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
@@ -36,6 +37,9 @@ class AngApplication : Application() {
         super.onCreate()
 
         MmkvManager.initialize(this)
+
+        // Enable Material3 Dynamic Colors (wallpaper-based theming) on supported devices
+        DynamicColors.applyToActivitiesIfAvailable(this)
 
         AppLocaleManager.initialize(this)
 
