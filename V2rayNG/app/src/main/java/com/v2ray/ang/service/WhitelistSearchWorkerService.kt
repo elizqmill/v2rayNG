@@ -12,8 +12,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.Executors
 
 /**
@@ -33,10 +31,10 @@ class WhitelistSearchWorkerService(
     private val onEvent: (RealPingEvent) -> Unit = {}
 ) {
     private val job = SupervisorJob()
-    private val dispatcher = Executors.newFixedThreadPool(SettingsManager.getRealPingConcurrency())
+    private val concurrency = SettingsManager.getRealPingConcurrency()
+    private val dispatcher = Executors.newFixedThreadPool(concurrency)
         .asCoroutineDispatcher()
     private val scope = CoroutineScope(job + dispatcher + CoroutineName("WhitelistSearchWorker"))
-    private val probeMutex = Mutex()
 
     fun start() {
         scope.launch {
@@ -102,24 +100,37 @@ class WhitelistSearchWorkerService(
         }
         if (!job.isActive) return
 
-        // Phase 2: speed-probe every responsive profile, best ping first.
+        // Phase 2: speed-probe every responsive profile, best ping first, in
+        // parallel using the same concurrency setting as the ping phase.
         // No early exit: leaving profiles unlabeled made it impossible to tell
         // whether they were ever speed-checked.
         val candidates = pingResults.filterValues { it >= 0L }
             .entries.sortedBy { it.value }
             .map { it.key }
 
-        for ((index, guid) in candidates.withIndex()) {
-            if (!job.isActive) break
-            onEvent(RealPingEvent.Progress("speed ${index + 1}/${candidates.size}"))
-            val (speed, stable) = probeMutex.withLock {
-                if (!job.isActive) return
-                WhitelistSpeedTester.measureProfileSpeed(guid, probeSettings)
+        if (candidates.isNotEmpty()) {
+            onEvent(RealPingEvent.Progress("speed 0/${candidates.size}"))
+            val next = java.util.concurrent.atomic.AtomicInteger(0)
+            val done = java.util.concurrent.atomic.AtomicInteger(0)
+            val workers = minOf(candidates.size, concurrency).coerceAtLeast(1)
+            val probeJobs = (0 until workers).map {
+                scope.launch {
+                    while (job.isActive) {
+                        val index = next.getAndIncrement()
+                        if (index >= candidates.size) break
+                        val guid = candidates[index]
+                        val (speed, stable) = WhitelistSpeedTester.measureProfileSpeed(guid, probeSettings)
+                        // The measured ping stays untouched: a shaped profile keeps its green
+                        // delay numbers and is flagged only through its speed result.
+                        MmkvManager.encodeServerTestSpeedBytesPerSec(guid, speed, stable)
+                        if (job.isActive) {
+                            onEvent(RealPingEvent.SpeedResult(guid, speed, stable))
+                            onEvent(RealPingEvent.Progress("speed ${done.incrementAndGet()}/${candidates.size}"))
+                        }
+                    }
+                }
             }
-            // The measured ping stays untouched: a shaped profile keeps its green
-            // delay numbers and is flagged only through its speed result.
-            MmkvManager.encodeServerTestSpeedBytesPerSec(guid, speed, stable)
-            if (job.isActive) onEvent(RealPingEvent.SpeedResult(guid, speed, stable))
+            joinAll(*probeJobs.toTypedArray())
         }
     }
 

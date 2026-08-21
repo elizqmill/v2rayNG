@@ -38,8 +38,8 @@ object WhitelistSpeedTester {
      * Runs the download probe for one profile.
      *
      * @return pair of average speed in bytes per second (always >= 0 when any
-     * data was received, even if shaped) and whether the profile sustained the
-     * full download (stable). Returns (-1, false) when the probe could not run.
+     * full download (stable). Speed is never negative: even a failed probe
+     * reports 0 so the UI can always show a number instead of a dash.
      */
     fun measureProfileSpeed(guid: String, settings: Settings): Pair<Long, Boolean> {
         val port = Utils.findRandomFreePort()
@@ -47,21 +47,21 @@ object WhitelistSpeedTester {
         return try {
             val configResult = CoreConfigManager.getV2rayConfig4SpeedtestWithSocksInbound(guid, port)
             if (!configResult.status) {
-                return Pair(-1L, false)
+                return Pair(0L, false)
             }
 
             controller = CoreNativeManager.newCoreController(NoOpCallback())
             controller.startLoop(configResult.content, 0)
             if (!waitForLocalProxy(port)) {
                 LogUtil.e(AppConfig.TAG, "WhitelistSpeedTester: local proxy did not open on port $port")
-                return Pair(-1L, false)
+                return Pair(0L, false)
             }
             Thread.sleep(PROXY_WARMUP_MS)
 
             runDownloadAttempts(port, settings)
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "WhitelistSpeedTester: failed to measure profile $guid", e)
-            Pair(-1L, false)
+            Pair(0L, false)
         } finally {
             try {
                 controller?.stopLoop()
@@ -100,7 +100,7 @@ object WhitelistSpeedTester {
         }
 
         if (totalElapsedMs <= 0L || totalBytes <= 0L) {
-            return Pair(-1L, false)
+            return Pair(0L, false)
         }
         // Stable only when every attempt carried the full test file: a shaped
         // ("type 2" whitelist) line trickles a few hundred KB and never finishes.

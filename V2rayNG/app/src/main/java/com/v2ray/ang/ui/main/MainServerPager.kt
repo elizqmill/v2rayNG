@@ -421,7 +421,9 @@ fun ServerListItem(
                 Text(typeDescription, style = MaterialTheme.typography.bodySmall, color = colorConfigType, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (testSpeedBytesPerSec != 0L) {
-                        val speedText = formatTestSpeed(testSpeedBytesPerSec)
+                        // A numeric result is always shown for probed profiles — even 0 KB/s
+                        // beats a dash in an emergency; legacy -1 entries render as zero too.
+                        val speedText = formatTestSpeed(maxOf(0L, testSpeedBytesPerSec))
                         Text(
                             speedText,
                             style = MaterialTheme.typography.bodySmall,

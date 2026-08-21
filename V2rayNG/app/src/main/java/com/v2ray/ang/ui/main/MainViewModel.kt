@@ -753,8 +753,10 @@ class MainViewModel(
     }
 
     /**
-     * Whitelist search: TCP-ping every profile, then download-probe the fastest
-     * candidates and record per-profile speeds next to the ping results.
+     * Whitelist search: reuse already-measured delays, download-probe every
+     * responsive profile and record per-profile speeds next to the ping.
+     * Existing results are intentionally NOT cleared first: known delays let
+     * the search jump straight into the speed stage.
      */
     fun whitelistSearch() {
         dataSource.cancelAllPing()
@@ -764,13 +766,6 @@ class MainViewModel(
             _uiState.update { it.copy(isTesting = false) }
             return
         }
-        val serverGuids = servers.map { it.guid }
-        mutableServersForGroup(groupId).update { current ->
-            current.map { server ->
-                if (server.testSpeedBytesPerSec == 0L) server
-                else server.copy(testSpeedBytesPerSec = 0L, testSpeedStable = false)
-            }
-        }
         testingGroupId = groupId
         _uiState.update {
             it.copy(
@@ -779,13 +774,12 @@ class MainViewModel(
             )
         }
         viewModelScope.launch(ioDispatcher) {
-            dataSource.clearAllTestDelayResults(serverGuids)
             cacheMutex.withLock { groupDataCache.remove(groupId) }
             dataSource.sendMsg2TestService(
                 TestServiceMessage(
                     key = AppConfig.MSG_WL_SEARCH_START,
                     subscriptionId = groupId,
-                    serverGuids = if (keywordFilter.isNotEmpty()) serverGuids else emptyList(),
+                    serverGuids = if (keywordFilter.isNotEmpty()) servers.map { it.guid } else emptyList(),
                 )
             )
         }
