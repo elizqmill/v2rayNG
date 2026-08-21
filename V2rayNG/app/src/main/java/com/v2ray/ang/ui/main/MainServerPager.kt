@@ -255,6 +255,7 @@ private fun ServerItemRow(
         testDelayMillis = serverCache.testDelayMillis,
         testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
         testSpeedStable = serverCache.testSpeedStable,
+        testSpeedPresent = serverCache.testSpeedPresent,
         isSelected = serverCache.guid == selectedGuid,
         subscriptionRemarks = subRemarks,
         doubleColumnDisplay = false,
@@ -290,6 +291,7 @@ private fun ServerItemColumn(
             testDelayMillis = serverCache.testDelayMillis,
             testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
             testSpeedStable = serverCache.testSpeedStable,
+            testSpeedPresent = serverCache.testSpeedPresent,
             isSelected = serverCache.guid == selectedGuid,
             subscriptionRemarks = subRemarks,
             doubleColumnDisplay = doubleColumnDisplay,
@@ -311,6 +313,7 @@ fun ServerListItem(
     testDelayMillis: Long,
     testSpeedBytesPerSec: Long = 0L,
     testSpeedStable: Boolean = false,
+    testSpeedPresent: Boolean = false,
     isSelected: Boolean,
     subscriptionRemarks: String,
     doubleColumnDisplay: Boolean,
@@ -420,9 +423,9 @@ fun ServerListItem(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(typeDescription, style = MaterialTheme.typography.bodySmall, color = colorConfigType, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (testSpeedBytesPerSec != 0L) {
-                        // A numeric result is always shown for probed profiles — even 0 KB/s
-                        // beats a dash in an emergency; legacy -1 entries render as zero too.
+                    if (testSpeedPresent) {
+                        // A probed profile always carries a number — even 0 KB/s
+                        // beats silence; only "never tested" hides the label.
                         val speedText = formatTestSpeed(maxOf(0L, testSpeedBytesPerSec))
                         Text(
                             speedText,

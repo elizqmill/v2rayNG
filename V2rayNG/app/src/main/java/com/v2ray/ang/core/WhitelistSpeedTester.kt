@@ -22,7 +22,13 @@ import java.util.concurrent.TimeUnit
  */
 object WhitelistSpeedTester {
 
-    private const val DOWNLOAD_TEST_URL = "https://speed.cloudflare.com/__down?bytes="
+    // Primary endpoint takes an arbitrary byte count; mirrors cover cases where
+    // the CDN refuses a datacenter IP or HTTPS is disturbed on shaped lines.
+    private val DOWNLOAD_TEST_URLS = listOf(
+        "https://speed.cloudflare.com/__down?bytes=",
+        "http://speed.cloudflare.com/__down?bytes=",
+        "https://cachefly.cachefly.net/10mb.test",
+    )
     private const val PROXY_START_TIMEOUT_MS = 5_000L
     private const val PROXY_START_POLL_MS = 100L
     private const val PROXY_WARMUP_MS = 700L
@@ -86,9 +92,18 @@ object WhitelistSpeedTester {
         var totalBytes = 0L
         var totalElapsedMs = 0L
         var completedRuns = 0
+        // Stick with whichever mirror actually delivers bytes; rotate only on
+        // a zero-byte attempt (CDN refusing datacenter IPs, TLS disturbances...).
+        var urlIndex = 0
 
         repeat(settings.downloadAttempts) { attempt ->
-            val result = downloadOnce(client, targetBytes, timeoutMs)
+            var result = downloadOnce(client, testUrl(DOWNLOAD_TEST_URLS[urlIndex], targetBytes), timeoutMs)
+            var fallbacksLeft = DOWNLOAD_TEST_URLS.size - 1
+            while (result.first <= 0L && fallbacksLeft > 0) {
+                urlIndex = (urlIndex + 1) % DOWNLOAD_TEST_URLS.size
+                result = downloadOnce(client, testUrl(DOWNLOAD_TEST_URLS[urlIndex], targetBytes), timeoutMs)
+                fallbacksLeft--
+            }
             totalBytes += result.first
             totalElapsedMs += result.second
             if (result.first >= targetBytes) {
@@ -107,10 +122,18 @@ object WhitelistSpeedTester {
         return Pair(totalBytes * 1000L / totalElapsedMs, completedRuns >= settings.downloadAttempts)
     }
 
-    /** @return pair of bytes read and elapsed milliseconds. */
-    private fun downloadOnce(client: OkHttpClient, targetBytes: Long, timeoutMs: Long): Pair<Long, Long> {
+    /** Size-carrying endpoints take the byte count, fixed-file mirrors use the raw URL. */
+    private fun testUrl(base: String, targetBytes: Long): String =
+        if (base.endsWith("=")) base + targetBytes else base
+
+    /**
+     * Reads whatever the endpoint streams, capped at [targetBytes] and the time
+     * budget. HTTP status is deliberately ignored: any byte flow through the
+     * tunnel is real throughput, and error pages are tiny anyway.
+     */
+    private fun downloadOnce(client: OkHttpClient, url: String, timeoutMs: Long): Pair<Long, Long> {
         val request = Request.Builder()
-            .url(DOWNLOAD_TEST_URL + targetBytes)
+            .url(url)
             .get()
             .header("Connection", "close")
             .build()
@@ -119,10 +142,7 @@ object WhitelistSpeedTester {
         var bytesRead = 0L
         try {
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    return Pair(0L, System.currentTimeMillis() - startedAt)
-                }
-                val body = response.body ?: return Pair(0L, System.currentTimeMillis() - startedAt)
+                val body = response.body ?: return Pair(0L, maxOf(1L, System.currentTimeMillis() - startedAt))
                 val buffer = ByteArray(64 * 1024)
                 body.byteStream().use { input ->
                     while (bytesRead < targetBytes) {

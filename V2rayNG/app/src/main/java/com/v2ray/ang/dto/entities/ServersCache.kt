@@ -6,4 +6,5 @@ data class ServersCache(
     val testDelayMillis: Long = 0L,
     val testSpeedBytesPerSec: Long = 0L,
     val testSpeedStable: Boolean = false,
+    val testSpeedPresent: Boolean = false,
 )

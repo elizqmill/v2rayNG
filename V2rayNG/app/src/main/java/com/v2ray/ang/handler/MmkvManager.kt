@@ -501,6 +501,7 @@ object MmkvManager {
         val aff = decodeServerAffiliationInfo(guid) ?: ServerAffiliationInfo()
         aff.testSpeedBytesPerSec = speedBytesPerSec
         aff.testSpeedStable = stable
+        aff.testSpeedPresent = true
         serverAffStorage.encode(guid, JsonUtil.toJson(aff))
     }
 
@@ -515,6 +516,7 @@ object MmkvManager {
                 aff.testDelayMillis = 0
                 aff.testSpeedBytesPerSec = 0
                 aff.testSpeedStable = false
+                aff.testSpeedPresent = false
                 serverAffStorage.encode(key, JsonUtil.toJson(aff))
             }
         }

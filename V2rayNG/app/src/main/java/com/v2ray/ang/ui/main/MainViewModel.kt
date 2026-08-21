@@ -255,7 +255,8 @@ class MainViewModel(
                 profile = profile.copy(),
                 testDelayMillis = affiliation?.testDelayMillis ?: 0L,
                 testSpeedBytesPerSec = affiliation?.testSpeedBytesPerSec ?: 0L,
-                testSpeedStable = affiliation?.testSpeedStable ?: false
+                testSpeedStable = affiliation?.testSpeedStable ?: false,
+                testSpeedPresent = affiliation?.testSpeedPresent ?: false
             )
         }
 
