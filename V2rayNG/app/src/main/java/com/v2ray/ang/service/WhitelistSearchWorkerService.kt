@@ -5,7 +5,6 @@ import com.v2ray.ang.core.WhitelistSpeedTester
 import com.v2ray.ang.dto.RealPingEvent
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
-import com.v2ray.ang.handler.SpeedtestManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +19,8 @@ import java.util.concurrent.Executors
 /**
  * Two-phase "whitelist" profile search.
  *
- * Phase 1: TCP-ping every profile in parallel to drop dead ones fast.
+ * Phase 1: real ping every profile in parallel (full HTTP delay through a
+ * temporary core, same as the regular delay test) to drop dead ones fast.
  * Phase 2: speed-probe the best candidates sequentially (one temp core at a
  * time), best ping first, until the target number of stable profiles is found.
  *
@@ -33,7 +33,8 @@ class WhitelistSearchWorkerService(
     private val onEvent: (RealPingEvent) -> Unit = {}
 ) {
     private val job = SupervisorJob()
-    private val dispatcher = Executors.newFixedThreadPool(WL_TCPING_PARALLELISM).asCoroutineDispatcher()
+    private val dispatcher = Executors.newFixedThreadPool(SettingsManager.getRealPingConcurrency())
+        .asCoroutineDispatcher()
     private val scope = CoroutineScope(job + dispatcher + CoroutineName("WhitelistSearchWorker"))
     private val probeMutex = Mutex()
 
@@ -65,19 +66,18 @@ class WhitelistSearchWorkerService(
 
     private suspend fun runSearch() {
         val targetCount = SettingsManager.getWlTargetCount()
-        val tcpingTimeoutMs = SettingsManager.getWlTcpingTimeoutMs()
         val probeSettings = WhitelistSpeedTester.Settings(
             downloadSizeMb = SettingsManager.getWlDownloadSizeMb(),
             downloadTimeoutSeconds = SettingsManager.getWlDownloadTimeoutSeconds(),
             downloadAttempts = SettingsManager.getWlDownloadAttempts(),
         )
 
-        // Phase 1: TCP ping everything in parallel.
+        // Phase 1: real ping everything in parallel.
         onEvent(RealPingEvent.Progress("0 / ${guids.size}"))
         val pingResults = mutableMapOf<String, Long>()
         val jobs = guids.map { guid ->
             scope.launch {
-                val ping = tcping(guid, tcpingTimeoutMs)
+                val ping = RealPingMeasure.measure(guid)
                 synchronized(pingResults) {
                     pingResults[guid] = ping
                 }
@@ -115,15 +115,7 @@ class WhitelistSearchWorkerService(
         }
     }
 
-    private fun tcping(guid: String, timeoutMs: Int): Long {
-        val config = MmkvManager.decodeServerConfig(guid) ?: return -1L
-        val server = config.server ?: return -1L
-        val port = config.serverPort?.toIntOrNull() ?: return -1L
-        return SpeedtestManager.socketConnectTime(server, port, timeoutMs)
-    }
-
     companion object {
-        private const val WL_TCPING_PARALLELISM = 5
         private const val CANDIDATE_POOL_MULTIPLIER = 2
     }
 }
