@@ -171,7 +171,7 @@ dependencies {
     implementation(project(":devicekit"))
 
     // AndroidX Preference (for DeviceKit settings host)
-    implementation("androidx.preference:preference-ktx:1.2.1")
+    implementation(libs.preference.ktx)
 
     // AndroidX Core Libraries
     implementation(libs.androidx.core.ktx)
