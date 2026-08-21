@@ -29,6 +29,7 @@ class CoreTestService : Service() {
 
     // manage active batch workers so each batch is independent and cancellable
     private val activeWorkers = Collections.synchronizedList(mutableListOf<RealPingWorkerService>())
+    private val activeWhitelistWorkers = Collections.synchronizedList(mutableListOf<WhitelistSearchWorkerService>())
     private val cancelAction by lazy {
         val intent = Intent(this, CoreTestService::class.java).putExtra(
             "content",
@@ -73,6 +74,9 @@ class CoreTestService : Service() {
         val snapshot = ArrayList(activeWorkers)
         snapshot.forEach { it.cancel() }
         activeWorkers.clear()
+        val wlSnapshot = ArrayList(activeWhitelistWorkers)
+        wlSnapshot.forEach { it.cancel() }
+        activeWhitelistWorkers.clear()
         NotificationHelper.stopForeground(this)
         super.onDestroy()
     }
@@ -100,12 +104,37 @@ class CoreTestService : Service() {
 
         when (message.key) {
             AppConfig.MSG_MEASURE_CONFIG_START -> handleMeasureStart(message, startId)
+            AppConfig.MSG_WL_SEARCH_START -> handleWhitelistSearchStart(message, startId)
             AppConfig.MSG_MEASURE_CONFIG_CANCEL -> handleMeasureCancel()
             else -> {
                 NotificationHelper.stopForeground(this); stopSelf(startId)
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun handleWhitelistSearchStart(message: TestServiceMessage, startId: Int) {
+        LogUtil.i(AppConfig.TAG, "CoreTestService starting whitelist search   subscription ${message.subscriptionId}")
+
+        val guidsList = when {
+            message.serverGuids.isNotEmpty() -> message.serverGuids
+            message.subscriptionId.isNotEmpty() -> MmkvManager.decodeServerList(message.subscriptionId)
+            else -> MmkvManager.decodeAllServerList()
+        }
+
+        if (guidsList.isNotEmpty()) {
+            lateinit var worker: WhitelistSearchWorkerService
+            worker = WhitelistSearchWorkerService(
+                context = this,
+                guids = guidsList,
+                onEvent = { event -> handleWorkerEvent(event, message) { activeWhitelistWorkers.remove(worker) } }
+            )
+            activeWhitelistWorkers.add(worker)
+            worker.start()
+        } else {
+            NotificationHelper.stopForeground(this)
+            stopSelf(startId)
+        }
     }
 
     private fun handleMeasureStart(message: TestServiceMessage, startId: Int) {
@@ -150,6 +179,11 @@ class CoreTestService : Service() {
                 MessageHelper.sendMsg2UI(this, AppConfig.MSG_MEASURE_CONFIG_SUCCESS, event.guid)
             }
 
+            is RealPingEvent.SpeedResult -> {
+                MmkvManager.encodeServerTestSpeedBytesPerSec(event.guid, event.speedBytesPerSec)
+                MessageHelper.sendMsg2UI(this, AppConfig.MSG_MEASURE_CONFIG_SUCCESS, event.guid)
+            }
+
             is RealPingEvent.Finish -> {
                 if (message.subscriptionId.isNotEmpty()) {
                     if (MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_REMOVE_INVALID_AFTER_TEST, false)) {
@@ -177,6 +211,9 @@ class CoreTestService : Service() {
         val snapshot = ArrayList(activeWorkers)
         snapshot.forEach { it.cancel() }
         activeWorkers.clear()
+        val wlSnapshot = ArrayList(activeWhitelistWorkers)
+        wlSnapshot.forEach { it.cancel() }
+        activeWhitelistWorkers.clear()
         NotificationHelper.stopForeground(this)
         stopSelf()
     }

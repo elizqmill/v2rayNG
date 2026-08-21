@@ -227,6 +227,7 @@ fun MainScreen(
                             MainMoreMenuAction.SortByTestResults -> onAction(MainAction.SortByTestResults)
                             MainMoreMenuAction.TestAll -> onAction(MainAction.TestAllServers)
                             MainMoreMenuAction.TestAllRealPing -> onAction(MainAction.TestRealAllServers)
+                            MainMoreMenuAction.WhitelistSearch -> onAction(MainAction.WhitelistSearch)
                             MainMoreMenuAction.UpdateSubscriptions -> onAction(MainAction.UpdateSubscriptions)
                         }
                     }

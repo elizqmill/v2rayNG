@@ -179,6 +179,7 @@ class MainViewModel(
             MainAction.RefreshGroups -> setupGroupTab(forceRefresh = true)
             MainAction.TestAllServers -> testAllRealPing(true)
             MainAction.TestRealAllServers -> testAllRealPing()
+            MainAction.WhitelistSearch -> whitelistSearch()
             MainAction.CancelTesting -> cancelAllPing()
             MainAction.RemoveAllServers -> removeAllServerAsync()
             MainAction.RemoveDuplicateServers -> removeDuplicateServerAsync()
@@ -251,7 +252,8 @@ class MainViewModel(
             ServersCache(
                 guid = guid,
                 profile = profile.copy(),
-                testDelayMillis = affiliation?.testDelayMillis ?: 0L
+                testDelayMillis = affiliation?.testDelayMillis ?: 0L,
+                testSpeedBytesPerSec = affiliation?.testSpeedBytesPerSec ?: 0L
             )
         }
 
@@ -724,6 +726,45 @@ class MainViewModel(
     fun testCurrentServerRealPing() {
         _uiState.update { it.copy(status = MainStatus.Testing) }
         dataSource.testCurrentServerRealPing()
+    }
+
+    /**
+     * Whitelist search: TCP-ping every profile, then download-probe the fastest
+     * candidates and record per-profile speeds next to the ping results.
+     */
+    fun whitelistSearch() {
+        dataSource.cancelAllPing()
+        val groupId = uiState.value.selectedGroupId
+        val servers = currentServers()
+        if (servers.isEmpty()) {
+            _uiState.update { it.copy(isTesting = false) }
+            return
+        }
+        val serverGuids = servers.map { it.guid }
+        mutableServersForGroup(groupId).update { current ->
+            current.map { server ->
+                if (server.testSpeedBytesPerSec == 0L) server
+                else server.copy(testSpeedBytesPerSec = 0L)
+            }
+        }
+        testingGroupId = groupId
+        _uiState.update {
+            it.copy(
+                isTesting = true,
+                status = MainStatus.Testing
+            )
+        }
+        viewModelScope.launch(ioDispatcher) {
+            dataSource.clearAllTestDelayResults(serverGuids)
+            cacheMutex.withLock { groupDataCache.remove(groupId) }
+            dataSource.sendMsg2TestService(
+                TestServiceMessage(
+                    key = AppConfig.MSG_WL_SEARCH_START,
+                    subscriptionId = groupId,
+                    serverGuids = if (keywordFilter.isNotEmpty()) serverGuids else emptyList(),
+                )
+            )
+        }
     }
 
     private fun onTestsFinished() {

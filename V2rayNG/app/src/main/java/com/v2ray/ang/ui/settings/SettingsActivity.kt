@@ -81,6 +81,7 @@ fun SettingsScreen(
     var observatorySettingsExpanded by rememberSaveable { mutableStateOf(false) }
     var advancedSettingsExpanded by rememberSaveable { mutableStateOf(true) }
     var modeSettingsExpanded by rememberSaveable { mutableStateOf(true) }
+    var wlSettingsExpanded by rememberSaveable { mutableStateOf(false) }
 
     var localDns by rememberMmkvBool(AppConfig.PREF_LOCAL_DNS_ENABLED, false)
     var fakeDns by rememberMmkvBool(AppConfig.PREF_FAKE_DNS_ENABLED, false)
@@ -148,6 +149,12 @@ fun SettingsScreen(
     var delayTestUrl by rememberMmkvString(AppConfig.PREF_DELAY_TEST_URL, "")
     var realPingConcurrency by rememberMmkvString(AppConfig.PREF_REAL_PING_CONCURRENCY, "16")
     var ipApiUrl by rememberMmkvString(AppConfig.PREF_IP_API_URL, "")
+
+    var wlTargetCount by rememberMmkvString(AppConfig.PREF_WL_TARGET_COUNT, "10")
+    var wlTcpingTimeoutMs by rememberMmkvString(AppConfig.PREF_WL_TCPING_TIMEOUT_MS, "1000")
+    var wlDownloadSizeMb by rememberMmkvString(AppConfig.PREF_WL_DOWNLOAD_SIZE_MB, "10")
+    var wlDownloadTimeoutSeconds by rememberMmkvString(AppConfig.PREF_WL_DOWNLOAD_TIMEOUT_SECONDS, "10")
+    var wlDownloadAttempts by rememberMmkvString(AppConfig.PREF_WL_DOWNLOAD_ATTEMPTS, "2")
 
     val isVpn = mode == VPN
     val hevTunEnabled = isVpn && useHevTun
@@ -627,6 +634,44 @@ fun SettingsScreen(
                     title = stringResource(R.string.title_pref_ip_api_url),
                     value = ipApiUrl,
                     onValueChanged = { ipApiUrl = it }
+                )
+            }
+
+            CollapsiblePreferenceGroupHeader(
+                title = stringResource(R.string.title_wl_settings),
+                expanded = wlSettingsExpanded,
+                onExpandedChange = { wlSettingsExpanded = it }
+            )
+            if (wlSettingsExpanded) {
+                SettingsEditItem(
+                    title = stringResource(R.string.title_pref_wl_target_count),
+                    value = wlTargetCount,
+                    keyboardNumber = true,
+                    onValueChanged = { wlTargetCount = it }
+                )
+                SettingsEditItem(
+                    title = stringResource(R.string.title_pref_wl_tcping_timeout_ms),
+                    value = wlTcpingTimeoutMs,
+                    keyboardNumber = true,
+                    onValueChanged = { wlTcpingTimeoutMs = it }
+                )
+                SettingsEditItem(
+                    title = stringResource(R.string.title_pref_wl_download_size_mb),
+                    value = wlDownloadSizeMb,
+                    keyboardNumber = true,
+                    onValueChanged = { wlDownloadSizeMb = it }
+                )
+                SettingsEditItem(
+                    title = stringResource(R.string.title_pref_wl_download_timeout_seconds),
+                    value = wlDownloadTimeoutSeconds,
+                    keyboardNumber = true,
+                    onValueChanged = { wlDownloadTimeoutSeconds = it }
+                )
+                SettingsEditItem(
+                    title = stringResource(R.string.title_pref_wl_download_attempts),
+                    value = wlDownloadAttempts,
+                    keyboardNumber = true,
+                    onValueChanged = { wlDownloadAttempts = it }
                 )
             }
 

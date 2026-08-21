@@ -253,6 +253,7 @@ private fun ServerItemRow(
             ?: AngConfigManager.generateDescription(profile),
         typeDescription = getProtocolDescription(profile),
         testDelayMillis = serverCache.testDelayMillis,
+        testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
         isSelected = serverCache.guid == selectedGuid,
         subscriptionRemarks = subRemarks,
         doubleColumnDisplay = false,
@@ -286,6 +287,7 @@ private fun ServerItemColumn(
             statistics = profile.description.nullIfBlank() ?: AngConfigManager.generateDescription(profile),
             typeDescription = getProtocolDescription(profile),
             testDelayMillis = serverCache.testDelayMillis,
+            testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
             isSelected = serverCache.guid == selectedGuid,
             subscriptionRemarks = subRemarks,
             doubleColumnDisplay = doubleColumnDisplay,
@@ -305,6 +307,7 @@ fun ServerListItem(
     statistics: String,
     typeDescription: String,
     testDelayMillis: Long,
+    testSpeedBytesPerSec: Long = 0L,
     isSelected: Boolean,
     subscriptionRemarks: String,
     doubleColumnDisplay: Boolean,
@@ -413,7 +416,18 @@ fun ServerListItem(
             Spacer(modifier = Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(typeDescription, style = MaterialTheme.typography.bodySmall, color = colorConfigType, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(testResult, style = MaterialTheme.typography.bodySmall, color = if (testDelayMillis < 0L) colorPingRed else colorPing, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (testSpeedBytesPerSec != 0L) {
+                        val speedText = formatTestSpeed(testSpeedBytesPerSec)
+                        Text(
+                            speedText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (testSpeedBytesPerSec < 0L || testDelayMillis < 0L) colorPingRed else colorPing,
+                            maxLines = 1
+                        )
+                    }
+                    Text(testResult, style = MaterialTheme.typography.bodySmall, color = if (testDelayMillis < 0L) colorPingRed else colorPing, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
@@ -451,4 +465,11 @@ internal suspend fun PagerState.navigateToPageOptimized(
     } else {
         scrollToPage(target)
     }
+}
+
+/** Human readable download speed for the profile list: "-1" probe failures render as a dash. */
+internal fun formatTestSpeed(speedBytesPerSec: Long): String = when {
+    speedBytesPerSec < 0L -> "—"
+    speedBytesPerSec >= 1024L * 1024L -> String.format("%.1f MB/s", speedBytesPerSec / 1048576.0)
+    else -> String.format("%.0f KB/s", speedBytesPerSec / 1024.0)
 }
