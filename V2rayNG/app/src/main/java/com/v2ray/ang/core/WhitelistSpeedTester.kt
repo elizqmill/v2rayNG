@@ -97,11 +97,11 @@ object WhitelistSpeedTester {
         var urlIndex = 0
 
         repeat(settings.downloadAttempts) { attempt ->
-            var result = downloadOnce(client, testUrl(DOWNLOAD_TEST_URLS[urlIndex], targetBytes), timeoutMs)
+            var result = downloadOnce(client, testUrl(DOWNLOAD_TEST_URLS[urlIndex], targetBytes), targetBytes, timeoutMs)
             var fallbacksLeft = DOWNLOAD_TEST_URLS.size - 1
             while (result.first <= 0L && fallbacksLeft > 0) {
                 urlIndex = (urlIndex + 1) % DOWNLOAD_TEST_URLS.size
-                result = downloadOnce(client, testUrl(DOWNLOAD_TEST_URLS[urlIndex], targetBytes), timeoutMs)
+                result = downloadOnce(client, testUrl(DOWNLOAD_TEST_URLS[urlIndex], targetBytes), targetBytes, timeoutMs)
                 fallbacksLeft--
             }
             totalBytes += result.first
@@ -131,7 +131,7 @@ object WhitelistSpeedTester {
      * budget. HTTP status is deliberately ignored: any byte flow through the
      * tunnel is real throughput, and error pages are tiny anyway.
      */
-    private fun downloadOnce(client: OkHttpClient, url: String, timeoutMs: Long): Pair<Long, Long> {
+    private fun downloadOnce(client: OkHttpClient, url: String, maxBytes: Long, timeoutMs: Long): Pair<Long, Long> {
         val request = Request.Builder()
             .url(url)
             .get()
@@ -145,9 +145,9 @@ object WhitelistSpeedTester {
                 val body = response.body ?: return Pair(0L, maxOf(1L, System.currentTimeMillis() - startedAt))
                 val buffer = ByteArray(64 * 1024)
                 body.byteStream().use { input ->
-                    while (bytesRead < targetBytes) {
+                    while (bytesRead < maxBytes) {
                         if (System.currentTimeMillis() - startedAt > timeoutMs) break
-                        val limit = minOf(buffer.size.toLong(), targetBytes - bytesRead).toInt()
+                        val limit = minOf(buffer.size.toLong(), maxBytes - bytesRead).toInt()
                         val read = input.read(buffer, 0, limit)
                         if (read == -1) break
                         bytesRead += read
