@@ -150,7 +150,6 @@ fun SettingsScreen(
     var realPingConcurrency by rememberMmkvString(AppConfig.PREF_REAL_PING_CONCURRENCY, "16")
     var ipApiUrl by rememberMmkvString(AppConfig.PREF_IP_API_URL, "")
 
-    var wlTargetCount by rememberMmkvString(AppConfig.PREF_WL_TARGET_COUNT, "10")
     var wlTcpingTimeoutMs by rememberMmkvString(AppConfig.PREF_WL_TCPING_TIMEOUT_MS, "1000")
     var wlDownloadSizeMb by rememberMmkvString(AppConfig.PREF_WL_DOWNLOAD_SIZE_MB, "10")
     var wlDownloadTimeoutSeconds by rememberMmkvString(AppConfig.PREF_WL_DOWNLOAD_TIMEOUT_SECONDS, "10")
@@ -643,12 +642,6 @@ fun SettingsScreen(
                 onExpandedChange = { wlSettingsExpanded = it }
             )
             if (wlSettingsExpanded) {
-                SettingsEditItem(
-                    title = stringResource(R.string.title_pref_wl_target_count),
-                    value = wlTargetCount,
-                    keyboardNumber = true,
-                    onValueChanged = { wlTargetCount = it }
-                )
                 SettingsEditItem(
                     title = stringResource(R.string.title_pref_wl_tcping_timeout_ms),
                     value = wlTcpingTimeoutMs,

@@ -576,6 +576,28 @@ object AngConfigManager {
     }
 
     /**
+     * Sorts servers by download speed results for a subscription.
+     * Faster profiles first; untested (0) and failed (-1) sink to the bottom.
+     *
+     * @param subId The subscription ID.
+     */
+    fun sortBySpeedResultsForSub(subId: String) {
+        val serverList = MmkvManager.decodeServerList(subId)
+        if (serverList.isEmpty()) return
+
+        val sorted = serverList
+            .map { guid ->
+                val speed =
+                    MmkvManager.decodeServerAffiliationInfo(guid)?.testSpeedBytesPerSec ?: 0L
+                guid to if (speed <= 0L) Long.MIN_VALUE else speed
+            }
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .toMutableList()
+        MmkvManager.encodeServerList(sorted, subId)
+    }
+
+    /**
      * Parses the configuration via a subscription.
      *
      * @param server The server string.

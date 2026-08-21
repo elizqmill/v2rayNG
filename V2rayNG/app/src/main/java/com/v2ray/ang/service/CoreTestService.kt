@@ -180,7 +180,7 @@ class CoreTestService : Service() {
             }
 
             is RealPingEvent.SpeedResult -> {
-                MmkvManager.encodeServerTestSpeedBytesPerSec(event.guid, event.speedBytesPerSec)
+                MmkvManager.encodeServerTestSpeedBytesPerSec(event.guid, event.speedBytesPerSec, event.stable)
                 MessageHelper.sendMsg2UI(this, AppConfig.MSG_MEASURE_CONFIG_SUCCESS, event.guid)
             }
 

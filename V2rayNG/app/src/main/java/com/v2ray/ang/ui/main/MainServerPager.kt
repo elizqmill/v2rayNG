@@ -254,6 +254,7 @@ private fun ServerItemRow(
         typeDescription = getProtocolDescription(profile),
         testDelayMillis = serverCache.testDelayMillis,
         testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
+        testSpeedStable = serverCache.testSpeedStable,
         isSelected = serverCache.guid == selectedGuid,
         subscriptionRemarks = subRemarks,
         doubleColumnDisplay = false,
@@ -288,6 +289,7 @@ private fun ServerItemColumn(
             typeDescription = getProtocolDescription(profile),
             testDelayMillis = serverCache.testDelayMillis,
             testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
+            testSpeedStable = serverCache.testSpeedStable,
             isSelected = serverCache.guid == selectedGuid,
             subscriptionRemarks = subRemarks,
             doubleColumnDisplay = doubleColumnDisplay,
@@ -308,6 +310,7 @@ fun ServerListItem(
     typeDescription: String,
     testDelayMillis: Long,
     testSpeedBytesPerSec: Long = 0L,
+    testSpeedStable: Boolean = false,
     isSelected: Boolean,
     subscriptionRemarks: String,
     doubleColumnDisplay: Boolean,
@@ -422,7 +425,7 @@ fun ServerListItem(
                         Text(
                             speedText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (testSpeedBytesPerSec < 0L || testDelayMillis < 0L) colorPingRed else colorPing,
+                            color = if (testSpeedStable && testSpeedBytesPerSec > 0L) colorPing else colorPingRed,
                             maxLines = 1
                         )
                     }

@@ -207,7 +207,7 @@ class SubscriptionUpdateService : Service() {
             }
 
             is RealPingEvent.SpeedResult -> {
-                MmkvManager.encodeServerTestSpeedBytesPerSec(event.guid, event.speedBytesPerSec)
+                MmkvManager.encodeServerTestSpeedBytesPerSec(event.guid, event.speedBytesPerSec, event.stable)
             }
 
             is RealPingEvent.Finish -> {

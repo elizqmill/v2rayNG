@@ -185,6 +185,7 @@ class MainViewModel(
             MainAction.RemoveDuplicateServers -> removeDuplicateServerAsync()
             MainAction.RemoveInvalidServers -> removeInvalidServerAsync()
             MainAction.SortByTestResults -> sortByTestResultsAsync()
+            MainAction.SortBySpeedResults -> sortBySpeedResultsAsync()
             MainAction.UpdateSubscriptions -> importConfigViaSub()
             MainAction.ExportAll -> exportAllAsync()
             is MainAction.SelectGroup -> subscriptionIdChanged(action.groupId)
@@ -253,7 +254,8 @@ class MainViewModel(
                 guid = guid,
                 profile = profile.copy(),
                 testDelayMillis = affiliation?.testDelayMillis ?: 0L,
-                testSpeedBytesPerSec = affiliation?.testSpeedBytesPerSec ?: 0L
+                testSpeedBytesPerSec = affiliation?.testSpeedBytesPerSec ?: 0L,
+                testSpeedStable = affiliation?.testSpeedStable ?: false
             )
         }
 
@@ -582,6 +584,28 @@ class MainViewModel(
         subs.forEach { dataSource.sortByTestResultsForSub(it) }
     }
 
+    private fun sortBySpeedResultsAsync() {
+        launchLoading {
+            withContext(ioDispatcher) {
+                try {
+                    val subs = if (uiState.value.selectedGroupId.isEmpty()) {
+                        dataSource.getSubsList()
+                    } else {
+                        listOf(uiState.value.selectedGroupId)
+                    }
+                    subs.forEach { dataSource.sortBySpeedResultsForSub(it) }
+                    cacheMutex.withLock { groupDataCache.clear() }
+                    setupGroupTab(forceRefresh = true)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Sort by speed results failed", e)
+                    toastError(R.string.toast_failure)
+                }
+            }
+        }
+    }
+
     fun subscriptionIdChanged(id: String) {
         if (_uiState.value.groups.none { it.id == id }) return
         mutableServersForGroup(id)
@@ -744,7 +768,7 @@ class MainViewModel(
         mutableServersForGroup(groupId).update { current ->
             current.map { server ->
                 if (server.testSpeedBytesPerSec == 0L) server
-                else server.copy(testSpeedBytesPerSec = 0L)
+                else server.copy(testSpeedBytesPerSec = 0L, testSpeedStable = false)
             }
         }
         testingGroupId = groupId

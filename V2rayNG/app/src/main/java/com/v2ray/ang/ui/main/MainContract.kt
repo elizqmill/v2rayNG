@@ -45,6 +45,7 @@ sealed interface MainAction {
     data object RemoveDuplicateServers : MainAction
     data object RemoveInvalidServers : MainAction
     data object SortByTestResults : MainAction
+    data object SortBySpeedResults : MainAction
     data object UpdateSubscriptions : MainAction
     data object ExportAll : MainAction
 

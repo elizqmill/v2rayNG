@@ -314,11 +314,11 @@
 
     <string name="title_wl_search">Find stable profiles (whitelist check)</string>
     <string name="title_wl_settings">Whitelist search</string>
-    <string name="title_pref_wl_target_count">Profiles to find (1–20)</string>
     <string name="title_pref_wl_tcping_timeout_ms">TCP ping timeout, ms (300–10000)</string>
     <string name="title_pref_wl_download_size_mb">Test file size, MB (1–100)</string>
     <string name="title_pref_wl_download_timeout_seconds">Download timeout, s (3–120)</string>
     <string name="title_pref_wl_download_attempts">Download attempts (1–10)</string>
+    <string name="title_sort_by_speed_results">Sort by speed</string>
 
     <string name="title_logcat" translatable="false">Logcat</string>
     <string name="logcat_copy">Copy</string>

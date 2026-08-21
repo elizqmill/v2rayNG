@@ -65,57 +65,63 @@ class WhitelistSearchWorkerService(
     }
 
     private suspend fun runSearch() {
-        val targetCount = SettingsManager.getWlTargetCount()
         val probeSettings = WhitelistSpeedTester.Settings(
             downloadSizeMb = SettingsManager.getWlDownloadSizeMb(),
             downloadTimeoutSeconds = SettingsManager.getWlDownloadTimeoutSeconds(),
             downloadAttempts = SettingsManager.getWlDownloadAttempts(),
         )
 
-        // Phase 1: real ping everything in parallel.
-        onEvent(RealPingEvent.Progress("0 / ${guids.size}"))
-        val pingResults = mutableMapOf<String, Long>()
-        val jobs = guids.map { guid ->
-            scope.launch {
-                val ping = RealPingMeasure.measure(guid)
-                synchronized(pingResults) {
-                    pingResults[guid] = ping
-                }
-                MmkvManager.encodeServerTestDelayMillis(guid, ping)
-                if (job.isActive) onEvent(RealPingEvent.Result(guid, ping))
-            }
+        // Phase 1: real ping. Profiles that already carry a measured delay
+        // (e.g. from a previous regular delay test) are reused as-is; only the
+        // unmeasured ones are probed now.
+        val pingResults = HashMap<String, Long>()
+        val toPing = ArrayList<String>()
+        for (guid in guids) {
+            val existing = MmkvManager.decodeServerAffiliationInfo(guid)?.testDelayMillis ?: 0L
+            if (existing == 0L) toPing.add(guid) else pingResults[guid] = existing
         }
-        joinAll(*jobs.toTypedArray())
+
+        if (toPing.isNotEmpty()) {
+            onEvent(RealPingEvent.Progress("ping 0/${toPing.size}"))
+            val done = java.util.concurrent.atomic.AtomicInteger(0)
+            val jobs = toPing.map { guid ->
+                scope.launch {
+                    val ping = RealPingMeasure.measure(guid)
+                    synchronized(pingResults) {
+                        pingResults[guid] = ping
+                    }
+                    MmkvManager.encodeServerTestDelayMillis(guid, ping)
+                    if (job.isActive) {
+                        onEvent(RealPingEvent.Result(guid, ping))
+                        val n = done.incrementAndGet()
+                        onEvent(RealPingEvent.Progress("ping $n/${toPing.size}"))
+                    }
+                }
+            }
+            joinAll(*jobs.toTypedArray())
+        }
         if (!job.isActive) return
 
-        // Phase 2: speed-probe the fastest responders, stop early once enough stable profiles found.
+        // Phase 2: speed-probe every responsive profile, best ping first.
+        // No early exit: leaving profiles unlabeled made it impossible to tell
+        // whether they were ever speed-checked.
         val candidates = pingResults.filterValues { it >= 0L }
             .entries.sortedBy { it.value }
-            .take(targetCount * CANDIDATE_POOL_MULTIPLIER)
             .map { it.key }
-        var stableFound = 0
 
         for ((index, guid) in candidates.withIndex()) {
-            if (!job.isActive || stableFound >= targetCount) break
-            onEvent(RealPingEvent.Progress("${index + 1} / ${candidates.size}"))
+            if (!job.isActive) break
+            onEvent(RealPingEvent.Progress("speed ${index + 1}/${candidates.size}"))
             val (speed, stable) = probeMutex.withLock {
                 if (!job.isActive) return
                 WhitelistSpeedTester.measureProfileSpeed(guid, probeSettings)
             }
-            // Keep the measured speed visible even for shaped profiles...
-            MmkvManager.encodeServerTestSpeedBytesPerSec(guid, speed)
-            if (stable) {
-                stableFound++
-            } else {
-                // ...but mark them failed so the ping turns red and sorting by
-                // test results sinks them below the usable profiles.
-                MmkvManager.encodeServerTestDelayMillis(guid, -1L)
-            }
-            if (job.isActive) onEvent(RealPingEvent.SpeedResult(guid, speed))
+            // The measured ping stays untouched: a shaped profile keeps its green
+            // delay numbers and is flagged only through its speed result.
+            MmkvManager.encodeServerTestSpeedBytesPerSec(guid, speed, stable)
+            if (job.isActive) onEvent(RealPingEvent.SpeedResult(guid, speed, stable))
         }
     }
 
-    companion object {
-        private const val CANDIDATE_POOL_MULTIPLIER = 2
-    }
+    companion object
 }

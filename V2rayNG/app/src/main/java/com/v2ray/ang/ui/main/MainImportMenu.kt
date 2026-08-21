@@ -34,6 +34,7 @@ enum class MainMoreMenuAction(@StringRes val labelRes: Int) {
     ExportAll(R.string.title_export_all),
     LocateSelected(R.string.title_locate_selected_config),
     SortByTestResults(R.string.title_sort_by_test_results),
+    SortBySpeedResults(R.string.title_sort_by_speed_results),
     TestAll(R.string.title_ping_all_server),
     TestAllRealPing(R.string.title_real_ping_all_server),
     WhitelistSearch(R.string.title_wl_search),
