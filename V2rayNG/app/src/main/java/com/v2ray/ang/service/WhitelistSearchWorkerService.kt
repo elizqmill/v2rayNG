@@ -3,6 +3,7 @@ package com.v2ray.ang.service
 import android.content.Context
 import com.v2ray.ang.core.WhitelistSpeedTester
 import com.v2ray.ang.dto.RealPingEvent
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import kotlinx.coroutines.CancellationException
@@ -112,19 +113,28 @@ class WhitelistSearchWorkerService(
             onEvent(RealPingEvent.Progress("speed 0/${candidates.size}"))
             val next = java.util.concurrent.atomic.AtomicInteger(0)
             val done = java.util.concurrent.atomic.AtomicInteger(0)
-            val workers = minOf(candidates.size, concurrency).coerceAtLeast(1)
+            // Every probe spins up a full Xray core; too many live cores at once
+            // pressure-kill the VPN daemon process, so cap this phase hard.
+            val workers = minOf(candidates.size, concurrency, SPEED_PROBE_MAX_PARALLEL).coerceAtLeast(1)
             val probeJobs = (0 until workers).map {
                 scope.launch {
                     while (job.isActive) {
                         val index = next.getAndIncrement()
                         if (index >= candidates.size) break
                         val guid = candidates[index]
-                        val (speed, stable) = WhitelistSpeedTester.measureProfileSpeed(guid, probeSettings)
                         // The measured ping stays untouched: a shaped profile keeps its green
                         // delay numbers and is flagged only through its speed result.
-                        MmkvManager.encodeServerTestSpeedBytesPerSec(guid, speed, stable)
+                        val cfgType = MmkvManager.decodeServerConfig(guid)?.configType
+                        val outcome = if (cfgType == EConfigType.CUSTOM) {
+                            RealPingExecutionLimiter.run(EConfigType.CUSTOM) {
+                                WhitelistSpeedTester.measureProfileSpeed(guid, probeSettings)
+                            }
+                        } else {
+                            WhitelistSpeedTester.measureProfileSpeed(guid, probeSettings)
+                        }
+                        MmkvManager.encodeServerTestSpeedBytesPerSec(guid, outcome.first, outcome.second)
                         if (job.isActive) {
-                            onEvent(RealPingEvent.SpeedResult(guid, speed, stable))
+                            onEvent(RealPingEvent.SpeedResult(guid, outcome.first, outcome.second))
                             onEvent(RealPingEvent.Progress("speed ${done.incrementAndGet()}/${candidates.size}"))
                         }
                     }
@@ -134,5 +144,8 @@ class WhitelistSearchWorkerService(
         }
     }
 
-    companion object
+    companion object {
+        /** Live-core ceiling for the download stage regardless of user concurrency. */
+        private const val SPEED_PROBE_MAX_PARALLEL = 8
+    }
 }

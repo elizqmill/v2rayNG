@@ -427,10 +427,18 @@ fun ServerListItem(
                         // A probed profile always carries a number — even 0 KB/s
                         // beats silence; only "never tested" hides the label.
                         val speedText = formatTestSpeed(maxOf(0L, testSpeedBytesPerSec))
+                        // Color by absolute throughput, not by the stability flag:
+                        // a profile that nearly finished in time still carried
+                        // plenty of speed and must not read as "dead".
+                        val speedColor = when {
+                            testSpeedBytesPerSec >= 1_000_000L -> colorPing          // ≥ ~1 MB/s: healthy
+                            testSpeedBytesPerSec >= 200_000L -> colorConfigType      // 200 KB/s…1 MB/s: usable
+                            else -> colorPingRed                                     // shaped / dead line
+                        }
                         Text(
                             speedText,
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (testSpeedStable && testSpeedBytesPerSec > 0L) colorPing else colorPingRed,
+                            color = speedColor,
                             maxLines = 1
                         )
                     }
