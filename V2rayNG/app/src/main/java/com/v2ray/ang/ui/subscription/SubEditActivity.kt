@@ -19,9 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -81,32 +83,7 @@ class SubEditActivity : BaseComponentActivity() {
             onDelete = { deleteServer() }
         )
     }
-
-    private fun decodeLink() {
-        val raw = url
-        if (raw.isBlank()) {
-            toast(R.string.sub_link_not_supported)
-            return
-        }
-        lifecycleScope.launch(Dispatchers.Default) {
-            // RSA-4096 в happ://crypt5 — считаем вне главного потока.
-            val result = SubLinkDecoder.decode(raw)
-            withContext(Dispatchers.Main) {
-                when (result) {
-                    is SubLinkDecoder.Result.Success -> {
-                        url = result.url
-                        toastSuccess(R.string.sub_link_decoded)
-                    }
-
-                    SubLinkDecoder.Result.AlreadyPlain ->
-                        toast(R.string.sub_link_already_plain)
-
-                    is SubLinkDecoder.Result.Failed ->
-                        toast(result.messageRes)
-                }
-            }
-        }
-    }
+}
 
     private fun saveServer(subItem: SubscriptionItem): Boolean {
 
@@ -179,6 +156,34 @@ fun SubEditScreen(
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
     val confirmRemove = MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false)
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun decodeLink() {
+        val raw = url
+        if (raw.isBlank()) {
+            context.toast(R.string.sub_link_not_supported)
+            return
+        }
+        scope.launch(Dispatchers.Default) {
+            // RSA-4096 в happ://crypt5 — считаем вне главного потока.
+            val result = SubLinkDecoder.decode(raw)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is SubLinkDecoder.Result.Success -> {
+                        url = result.url
+                        context.toastSuccess(R.string.sub_link_decoded)
+                    }
+
+                    SubLinkDecoder.Result.AlreadyPlain ->
+                        context.toast(R.string.sub_link_already_plain)
+
+                    is SubLinkDecoder.Result.Failed ->
+                        context.toast(result.messageRes)
+                }
+            }
+        }
+    }
 
     fun buildSubItem(): SubscriptionItem {
         val subItem = MmkvManager.decodeSubscription(editSubId) ?: SubscriptionItem()

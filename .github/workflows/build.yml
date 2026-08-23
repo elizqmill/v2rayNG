@@ -145,6 +145,16 @@ jobs:
         file: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk
         tag: ${{ steps.tag.outputs.value }}
         release_name: ${{ steps.tag.outputs.value }}
+        body: |
+          Автосборка master — `${{ github.sha }}`
+
+          ${{ github.event.head_commit.message }}
+
+          ---
+
+          **APK:** `universal` / `arm64-v8a` / `armeabi-v7a` / `x86_64` / `x86`
+          Не знаете архитектуру устройства — берите `universal`.
+          Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         file_glob: true
         prerelease: false
         overwrite_files: true

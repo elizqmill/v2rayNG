@@ -126,7 +126,11 @@ object SubLinkDecoder {
         val compact = value.filterNot(Char::isWhitespace)
         if (compact.isEmpty() || !Regex("[A-Za-z0-9_+/=-]+").matches(compact)) return value
         return runCatching {
-            decodeLooseBase64(compact.trimEnd('=')).toString(Charsets.UTF_8).trim()
+            val trimmed = compact.trimEnd('=')
+            android.util.Base64.decode(
+                trimmed + "=".repeat((4 - trimmed.length % 4) % 4),
+                android.util.Base64.DEFAULT,
+            ).toString(Charsets.UTF_8).trim()
         }.getOrDefault(value)
     }
 
