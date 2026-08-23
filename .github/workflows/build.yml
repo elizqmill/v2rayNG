@@ -146,8 +146,6 @@ jobs:
         tag: ${{ steps.tag.outputs.value }}
         release_name: ${{ steps.tag.outputs.value }}
         body: |
-          Автосборка master — `${{ github.sha }}`
-
           ${{ github.event.head_commit.message }}
 
           ---
