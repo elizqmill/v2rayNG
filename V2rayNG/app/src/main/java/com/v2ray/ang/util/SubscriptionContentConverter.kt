@@ -185,7 +185,7 @@ object SubscriptionContentConverter {
                 "vmess" -> buildVmess(ob, rem)
                 "shadowsocks" -> buildShadowsocks(ob, rem)
                 "trojan" -> buildTrojan(ob, rem)
-                "hysteria2" -> buildHysteria2(ob, rem)
+                "hysteria", "hysteria2" -> buildHysteriaX(ob, rem)
                 "tuic" -> buildTuic(ob, rem)
                 else -> if (isShadowsocks(ob)) buildShadowsocks(ob, rem) else null
             }
@@ -407,6 +407,51 @@ object SubscriptionContentConverter {
         val encRem = URLEncoder.encode(finalRem, "UTF-8").replace("+", "%20")
 
         "tuic://$uuid:$password@$address:$port$queryString#$encRem"
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * Hysteria v1/v2 as served inside full xray configs by proxy shops:
+     * address/port live either in settings{address,port} or
+     * settings.servers[0], auth in hysteriaSettings{version,auth}.
+     */
+    private fun buildHysteriaX(ob: JSONObject, rem: String): String? = try {
+        val settings = ob.optJSONObject("settings")
+        val serverObj = settings?.optJSONArray("servers")?.optJSONObject(0)
+        val address = (settings?.optString("address", "") ?: "")
+            .ifEmpty { serverObj?.optString("address", "") ?: "" }
+        val port = if (settings?.has("port") == true) settings.optInt("port")
+        else serverObj?.optInt("port", 0) ?: 0
+        if (address.isEmpty() || port <= 0) return null
+
+        val hy = ob.optJSONObject("streamSettings")?.optJSONObject("hysteriaSettings")
+        val version = hy?.optInt("version")
+            ?: settings?.optInt("version")
+            ?: if (ob.optString("protocol") == "hysteria2") 2 else 1
+        val auth = hy?.optString("auth")
+            ?: serverObj?.optString("password")
+            ?: settings?.optString("auth")
+            ?: ""
+
+        val tls = ob.optJSONObject("streamSettings")?.optJSONObject("tlsSettings")
+        val sni = tls?.optString("serverName")
+        val alpn = tls?.optJSONArray("alpn")?.optString(0)
+
+        val query = StringBuilder()
+        if (version < 2 && auth.isNotEmpty()) query.append("&auth=").append(URLEncoder.encode(auth, "UTF-8"))
+        sni?.takeIf { it.isNotEmpty() }?.let { query.append("&sni=").append(URLEncoder.encode(it, "UTF-8")) }
+        alpn?.takeIf { it.isNotEmpty() }?.let { query.append("&alpn=").append(URLEncoder.encode(it, "UTF-8")) }
+        if (tls?.optBoolean("allowInsecure", false) == true) query.append("&insecure=1")
+        val queryString = if (query.isNotEmpty()) "?" + query.substring(1) else ""
+
+        val encRem = URLEncoder.encode(ob.optString("remarks", rem), "UTF-8").replace("+", "%20")
+        if (version >= 2) {
+            // v2 carries auth in userinfo position
+            "hysteria2://$auth@$address:$port/$queryString#$encRem"
+        } else {
+            "hysteria://$address:$port$queryString#$encRem"
+        }
     } catch (_: Exception) {
         null
     }
