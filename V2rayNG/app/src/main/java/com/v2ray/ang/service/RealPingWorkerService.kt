@@ -1,6 +1,7 @@
 package com.v2ray.ang.service
 
 import android.content.Context
+import com.v2ray.ang.AngApplication
 import com.v2ray.ang.core.CoreConfigManager
 import com.v2ray.ang.core.CoreNativeManager
 import com.v2ray.ang.dto.RealPingEvent
@@ -34,6 +35,41 @@ internal object RealPingExecutionLimiter {
             customConfigMutex.withLock { block() }
         } else {
             block()
+        }
+    }
+}
+
+/**
+ * Shared real-ping implementation: TCP pre-check when applicable, then a full
+ * HTTP delay measurement through a temporary Xray instance for the profile.
+ * Used by the regular batch tester and by the whitelist search.
+ */
+internal object RealPingMeasure {
+    suspend fun measure(guid: String): Long {
+        val retFailure = -1L
+
+        val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
+        if (!config.configType.isComplexType()
+            && config.configType != EConfigType.HYSTERIA2
+            && config.configType != EConfigType.WIREGUARD
+            && config.alpn?.startsWith("h3") != true
+            && config.server.isNotNullEmpty()
+            && config.serverPort?.toIntOrNull() != null
+        ) {
+            val url = config.server.orEmpty()
+            val port = config.serverPort.orEmpty().toInt()
+            val tcpTime = SpeedtestManager.socketConnectTime(url, port, 1000)
+            if (tcpTime <= -1L) {
+                return retFailure
+            }
+        }
+
+        val configResult = CoreConfigManager.getV2rayConfig4Speedtest(AngApplication.application, guid)
+        if (!configResult.status) {
+            return retFailure
+        }
+        return RealPingExecutionLimiter.run(config.configType) {
+            CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl())
         }
     }
 }
@@ -105,31 +141,7 @@ class RealPingWorkerService(
     }
 
     private suspend fun startRealPing(guid: String): Long {
-        val retFailure = -1L
-
-        val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
-        if (!config.configType.isComplexType()
-            && config.configType != EConfigType.HYSTERIA2
-            && config.configType != EConfigType.WIREGUARD
-            && config.alpn?.startsWith("h3") != true
-            && config.server.isNotNullEmpty()
-            && config.serverPort?.toIntOrNull() != null
-        ) {
-            val url = config.server.orEmpty()
-            val port = config.serverPort.orEmpty().toInt()
-            val tcpTime = SpeedtestManager.socketConnectTime(url, port, 1000)
-            if (tcpTime <= -1L) {
-                return retFailure
-            }
-        }
-
-        val configResult = CoreConfigManager.getV2rayConfig4Speedtest(context, guid)
-        if (!configResult.status) {
-            return retFailure
-        }
-        return RealPingExecutionLimiter.run(config.configType) {
-            CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl())
-        }
+        return RealPingMeasure.measure(guid)
     }
 
     private fun startTcping(guid: String): Long {

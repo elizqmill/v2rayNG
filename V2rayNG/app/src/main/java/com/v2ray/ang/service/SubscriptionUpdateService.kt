@@ -206,6 +206,10 @@ class SubscriptionUpdateService : Service() {
                 MmkvManager.encodeServerTestDelayMillis(event.guid, event.delayMillis)
             }
 
+            is RealPingEvent.SpeedResult -> {
+                MmkvManager.encodeServerTestSpeedBytesPerSec(event.guid, event.speedBytesPerSec, event.stable)
+            }
+
             is RealPingEvent.Finish -> {
                 onWorkerDone()
             }

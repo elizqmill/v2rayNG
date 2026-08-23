@@ -4,4 +4,7 @@ data class ServersCache(
     val guid: String,
     val profile: ProfileItem,
     val testDelayMillis: Long = 0L,
+    val testSpeedBytesPerSec: Long = 0L,
+    val testSpeedStable: Boolean = false,
+    val testSpeedPresent: Boolean = false,
 )
