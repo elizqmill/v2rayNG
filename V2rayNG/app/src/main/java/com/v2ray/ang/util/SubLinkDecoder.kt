@@ -162,8 +162,9 @@ object SubLinkDecoder {
                 if (payload.isEmpty()) {
                     throw DecryptException("empty")
                 }
-                // index совпадает с номером поколения: crypt5 -> 4.
-                return if (index == 0) decryptCrypt5(payload) else decryptCrypt1to4(payload, index - 1)
+                // Поколение = номер формата: crypt->0 ... crypt5->4. Индекс 0
+                // списка и есть crypt5, остальные идут по убыванию поколения.
+                return if (index == 0) decryptCrypt5(payload) else decryptCrypt1to4(payload, 4 - index)
             }
             throw DecryptException("not crypt")
         }
