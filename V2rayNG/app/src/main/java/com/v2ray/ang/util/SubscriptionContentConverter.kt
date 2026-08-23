@@ -231,6 +231,16 @@ object SubscriptionContentConverter {
             "sni" to sni,
             "type" to type,
         )
+        // Transports are unusable without their parameters
+        val wsSettings = ss?.optJSONObject("wsSettings")
+        val httpSettings = ss?.optJSONObject("httpSettings")
+        (wsSettings?.optString("path") ?: httpSettings?.optString("path"))
+            ?.takeIf { it.isNotEmpty() }?.let { params["path"] = it }
+        (wsSettings?.optJSONObject("headers")?.optString("Host")
+            ?: httpSettings?.optJSONArray("host")?.optString(0))
+            ?.takeIf { it.isNotEmpty() }?.let { params["host"] = it }
+        ss?.optJSONObject("grpcSettings")?.optString("serviceName")
+            ?.takeIf { it.isNotEmpty() }?.let { params["serviceName"] = it }
         val query = params.filterValues { it.isNotEmpty() }
             .entries.joinToString("&") { "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}" }
         "vless://${u.getString("id")}@${vn.getString("address")}:${vn.getInt("port")}?$query#$enc"
