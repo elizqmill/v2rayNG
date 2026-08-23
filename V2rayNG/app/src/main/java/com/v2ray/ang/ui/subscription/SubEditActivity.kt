@@ -83,7 +83,6 @@ class SubEditActivity : BaseComponentActivity() {
             onDelete = { deleteServer() }
         )
     }
-}
 
     private fun saveServer(subItem: SubscriptionItem): Boolean {
 
