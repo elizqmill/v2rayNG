@@ -77,9 +77,14 @@ object SubscriptionContentConverter {
             val arr = JSONArray(t)
             val out = StringBuilder()
             for (i in 0 until arr.length()) {
-                val obj = arr.optJSONObject(i) ?: continue
-                val piece = processJson(obj) ?: continue
-                out.append(piece).append("\n")
+                val obj = arr.optJSONObject(i)
+                // Unconvertible entries stay as compact JSON so they still import
+                // as custom profiles - dropping them loses servers silently.
+                val piece = when {
+                    obj == null -> arr.opt(i)?.toString()?.takeIf { it != "null" }
+                    else -> processJson(obj) ?: obj.toString()
+                }
+                if (!piece.isNullOrEmpty()) out.append(piece).append("\n")
             }
             out.toString().trim().takeIf { it.isNotEmpty() }
         } else {
@@ -145,6 +150,23 @@ object SubscriptionContentConverter {
     private fun processJson(root: JSONObject): String? {
         if (isShadowsocks(root)) {
             return buildShadowsocks(root, root.optString("remarks", ""))
+        }
+
+        // sing-box style direct outbound: { "type": "...", "server": ..., "server_port": ... }
+        val sbType = root.optString("type")
+        if (sbType.isNotEmpty() && (root.has("server") || root.has("server_port"))) {
+            val rem = root.optString("tag", "")
+            return when (sbType) {
+                "vless" -> buildSbVless(root, rem)
+                "vmess" -> buildSbVmess(root, rem)
+                "trojan" -> buildSbTrojan(root, rem)
+                "shadowsocks" -> buildSbShadowsocks(root, rem)
+                "hysteria2" -> buildSbHysteria2(root, rem)
+                "tuic" -> buildTuic(root, rem)
+                "socks" -> buildUserPassLink("socks", root, rem)
+                "http" -> buildUserPassLink("http", root, rem)
+                else -> null
+            }
         }
 
         val protocol = root.optString("protocol", root.optString("type"))
@@ -375,6 +397,149 @@ object SubscriptionContentConverter {
         val encRem = URLEncoder.encode(finalRem, "UTF-8").replace("+", "%20")
 
         "tuic://$uuid:$password@$address:$port$queryString#$encRem"
+    } catch (_: Exception) {
+        null
+    }
+
+    //region sing-box direct outbounds
+
+    private fun sbTls(root: JSONObject): JSONObject? =
+        root.optJSONObject("tls")?.takeIf { it.optBoolean("enabled", true) }
+
+    private fun sbTransportType(root: JSONObject): String =
+        root.optJSONObject("transport")?.optString("type")?.takeIf { it.isNotEmpty() } ?: "tcp"
+
+    private fun buildSbVless(root: JSONObject, rem: String): String? = try {
+        val uuid = root.optString("uuid")
+        val address = root.optString("server")
+        val port = root.optInt("server_port")
+        if (uuid.isEmpty() || address.isEmpty() || port <= 0) return null
+
+        val tls = sbTls(root)
+        val reality = tls?.optJSONObject("reality")
+        val params = linkedMapOf(
+            "encryption" to "none",
+            "flow" to root.optString("flow", ""),
+            "fp" to (tls?.optJSONObject("utls")?.optString("fingerprint") ?: ""),
+            "pbk" to (reality?.optString("public_key") ?: ""),
+            "security" to if (tls != null) "tls" else "none",
+            "sid" to (reality?.optString("short_id") ?: ""),
+            "sni" to (tls?.optString("server_name") ?: ""),
+            "type" to sbTransportType(root),
+        )
+        val transport = root.optJSONObject("transport")
+        val query = StringBuilder()
+        params.forEach { (k, v) ->
+            if (v.isNotEmpty()) query.append("&").append(k).append("=").append(URLEncoder.encode(v, "UTF-8"))
+        }
+        transport?.optString("path")?.takeIf { it.isNotEmpty() }?.let {
+            query.append("&path=").append(URLEncoder.encode(it, "UTF-8"))
+        }
+        transport?.optJSONObject("headers")?.optString("Host")?.takeIf { it.isNotEmpty() }?.let {
+            query.append("&host=").append(URLEncoder.encode(it, "UTF-8"))
+        }
+        val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
+        "vless://$uuid@$address:$port?${query.substring(1)}#$encRem"
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun buildSbVmess(root: JSONObject, rem: String): String? = try {
+        val linkJson = JSONObject()
+        linkJson.put("v", "2")
+        linkJson.put("add", root.optString("server"))
+        linkJson.put("port", root.optInt("server_port").toString())
+        linkJson.put("id", root.optString("uuid"))
+        linkJson.put("aid", root.optInt("alter_id", 0).toString())
+        linkJson.put("scy", root.optString("security", "auto"))
+
+        val net = sbTransportType(root)
+        linkJson.put("net", net)
+        val tls = sbTls(root)
+        linkJson.put("tls", if (tls != null) "tls" else "")
+        linkJson.put("sni", tls?.optString("server_name") ?: "")
+
+        if (net == "ws") {
+            val ws = root.optJSONObject("transport")
+            linkJson.put("path", ws?.optString("path"))
+            val host = ws?.optJSONObject("headers")?.optString("Host")
+            if (host != null) linkJson.put("host", host)
+        }
+
+        linkJson.put("ps", rem)
+        val base64 = android.util.Base64.encodeToString(linkJson.toString().toByteArray(), android.util.Base64.NO_WRAP)
+        "vmess://$base64"
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun buildSbTrojan(root: JSONObject, rem: String): String? = try {
+        val password = root.optString("password")
+        val address = root.optString("server")
+        val port = root.optInt("server_port")
+        if (password.isEmpty() || address.isEmpty() || port <= 0) return null
+
+        val query = mutableMapOf<String, String>()
+        query["type"] = sbTransportType(root)
+        sbTls(root)?.optString("server_name")?.takeIf { it.isNotEmpty() }?.let {
+            query["sni"] = it
+            query["host"] = it
+        }
+        val queryStr = query.entries.sortedBy { it.key }.joinToString("&") {
+            "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}"
+        }
+        val encPass = URLEncoder.encode(password, "UTF-8")
+        val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
+        "trojan://$encPass@$address:$port?$queryStr#$encRem"
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun buildSbShadowsocks(root: JSONObject, rem: String): String? = try {
+        val method = root.optString("method")
+        val password = root.optString("password")
+        val address = root.optString("server")
+        val port = root.optInt("server_port")
+        if (method.isEmpty() || address.isEmpty() || port <= 0) return null
+        val ui = android.util.Base64.encodeToString("$method:$password".toByteArray(), android.util.Base64.NO_WRAP)
+        val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
+        "ss://$ui@$address:$port#$encRem"
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun buildSbHysteria2(root: JSONObject, rem: String): String? = try {
+        val password = root.optString("password") ?: ""
+        val address = root.optString("server")
+        val port = root.optInt("server_port")
+        if (address.isEmpty() || port <= 0) return null
+
+        val obfs = root.optJSONObject("obfs")
+        val sni = root.optJSONObject("tls")?.optString("server_name")
+
+        val query = StringBuilder()
+        obfs?.optString("type")?.takeIf { it.isNotEmpty() }?.let { query.append("&obfs=").append(URLEncoder.encode(it, "UTF-8")) }
+        obfs?.optString("password")?.takeIf { it.isNotEmpty() }?.let { query.append("&obfs-password=").append(URLEncoder.encode(it, "UTF-8")) }
+        sni?.takeIf { it.isNotEmpty() }?.let { query.append("&sni=").append(URLEncoder.encode(it, "UTF-8")) }
+        if (root.optJSONObject("tls")?.optBoolean("insecure", false) == true) query.append("&insecure=1")
+
+        val queryString = if (query.isNotEmpty()) "?" + query.substring(1) else ""
+        val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
+        "hysteria2://$password@$address:$port/$queryString#$encRem"
+    } catch (_: Exception) {
+        null
+    }
+
+    /** socks/http share links; v2rayNG parses user:pass@host:port natively. */
+    private fun buildUserPassLink(scheme: String, root: JSONObject, rem: String): String? = try {
+        val address = root.optString("server")
+        val port = root.optInt("server_port")
+        if (address.isEmpty() || port <= 0) return null
+        val user = root.optString("username")
+        val pass = root.optString("password")
+        val userinfo = if (user.isEmpty() && pass.isEmpty()) "" else "$user:$pass@"
+        val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
+        "$scheme://$userinfo$address:$port#$encRem"
     } catch (_: Exception) {
         null
     }
