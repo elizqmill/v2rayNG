@@ -3,6 +3,7 @@ package com.v2ray.ang.ui.subscription
 import android.os.Bundle
 import android.text.TextUtils
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -19,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -44,9 +46,11 @@ import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
+import com.v2ray.ang.util.SubLinkDecoder
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SubEditActivity : BaseComponentActivity() {
     private val editSubId by lazy { intent.getStringExtra("subId").orEmpty() }
@@ -76,6 +80,32 @@ class SubEditActivity : BaseComponentActivity() {
             onSave = { saveServer(it) },
             onDelete = { deleteServer() }
         )
+    }
+
+    private fun decodeLink() {
+        val raw = url
+        if (raw.isBlank()) {
+            toast(R.string.sub_link_not_supported)
+            return
+        }
+        lifecycleScope.launch(Dispatchers.Default) {
+            // RSA-4096 в happ://crypt5 — считаем вне главного потока.
+            val result = SubLinkDecoder.decode(raw)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is SubLinkDecoder.Result.Success -> {
+                        url = result.url
+                        toastSuccess(R.string.sub_link_decoded)
+                    }
+
+                    SubLinkDecoder.Result.AlreadyPlain ->
+                        toast(R.string.sub_link_already_plain)
+
+                    is SubLinkDecoder.Result.Failed ->
+                        toast(result.messageRes)
+                }
+            }
+        }
     }
 
     private fun saveServer(subItem: SubscriptionItem): Boolean {
@@ -201,7 +231,18 @@ fun SubEditScreen(
                 .padding(bottom = 36.dp)
         ) {
             FormTextField(stringResource(R.string.sub_setting_remarks), remarks, { remarks = it })
-            FormTextField(stringResource(R.string.sub_setting_url), url, { url = it })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FormTextField(
+                    stringResource(R.string.sub_setting_url), url, { url = it },
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { decodeLink() }) {
+                    Icon(
+                        painterResource(R.drawable.ic_decrypt_24dp),
+                        contentDescription = stringResource(R.string.acc_decrypt_link)
+                    )
+                }
+            }
             FormTextField(stringResource(R.string.sub_setting_user_agent), userAgent, { userAgent = it })
             FormTextField(stringResource(R.string.sub_setting_request_headers), requestHeaders, { requestHeaders = it })
             FormTextField(stringResource(R.string.sub_setting_filter), filter, { filter = it })
