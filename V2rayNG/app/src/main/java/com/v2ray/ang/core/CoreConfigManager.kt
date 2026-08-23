@@ -574,16 +574,17 @@ object CoreConfigManager {
             inbound1.sniffing?.destOverride?.add("fakedns")
         }
 
-        if (!Utils.isXray()) {
-            val inbound2 = JsonUtil.fromJson(JsonUtil.toJson(inbound1), V2rayConfig.InboundBean::class.java)
-                ?: error("Failed to clone inbound template")
-            inbound2.tag = EConfigType.HTTP.name.lowercase()
-            inbound2.port = SettingsManager.getHttpPort()
-            inbound2.protocol = EConfigType.HTTP.name.lowercase()
-            inbound2.settings?.auth = null
-            inbound2.settings?.udp = null
-            v2rayConfig.inbounds.add(inbound2)
-        }
+        // Loopback HTTP inbound: subscription updates and remote-content fetches
+        // speak HTTP CONNECT to this port. Without it under Xray core those
+        // requests hit the SOCKS listener and die on a bogus 407.
+        val inbound2 = JsonUtil.fromJson(JsonUtil.toJson(inbound1), V2rayConfig.InboundBean::class.java)
+            ?: error("Failed to clone inbound template")
+        inbound2.tag = EConfigType.HTTP.name.lowercase()
+        inbound2.port = SettingsManager.getHttpPort()
+        inbound2.protocol = EConfigType.HTTP.name.lowercase()
+        inbound2.settings?.auth = null
+        inbound2.settings?.udp = null
+        v2rayConfig.inbounds.add(inbound2)
 
         if (!enableLocalProxy) {
             v2rayConfig.inbounds.removeIf { it.protocol == "socks" || it.protocol == "http" }
