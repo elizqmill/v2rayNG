@@ -319,6 +319,10 @@
     <string name="title_pref_wl_download_timeout_seconds">Download timeout, s (3–120)</string>
     <string name="title_pref_wl_download_attempts">Download attempts (1–10)</string>
     <string name="title_sort_by_speed_results">Sort by speed</string>
+    <string name="sub_decode_base64_to_text">Base64 to text</string>
+    <string name="sub_decode_base64_to_text_tip">Decode base64 subscription bodies into plain link lists on update</string>
+    <string name="sub_convert_custom_to_links">Custom configs to links</string>
+    <string name="sub_convert_custom_to_links_tip">Convert custom JSON profiles into regular links on update</string>
 
     <string name="title_logcat" translatable="false">Logcat</string>
     <string name="logcat_copy">Copy</string>

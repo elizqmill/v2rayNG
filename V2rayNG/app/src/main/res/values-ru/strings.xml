@@ -555,5 +555,9 @@
     <string name="title_pref_wl_download_timeout_seconds">Таймаут скачивания, с (3–120)</string>
     <string name="title_pref_wl_download_attempts">Количество прогонов (1–10)</string>
     <string name="title_sort_by_speed_results">Сортировать по скорости</string>
+    <string name="sub_decode_base64_to_text">Base64 в текст</string>
+    <string name="sub_decode_base64_to_text_tip">Декодировать base64-ответ подписки в обычный список ссылок при обновлении</string>
+    <string name="sub_convert_custom_to_links">Кастомные в ссылки</string>
+    <string name="sub_convert_custom_to_links_tip">Превращать кастомные JSON-профили в обычные ссылки при обновлении</string>
 
 </resources>

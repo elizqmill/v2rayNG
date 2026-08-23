@@ -14,5 +14,9 @@ data class SubscriptionItem(
     var allowInsecureUrl: Boolean = false,
     var userAgent: String? = null,
     var requestHeaders: String? = null,
+    /** Decode the fetched body when it arrives as a base64 blob/plain lines. */
+    var decodeBase64ToText: Boolean = false,
+    /** Convert custom JSON configs in the body into regular share links on update. */
+    var convertCustomToLinks: Boolean = false,
 )
 

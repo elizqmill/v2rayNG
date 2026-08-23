@@ -25,6 +25,7 @@ import com.v2ray.ang.util.HttpUtil
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.QRCodeDecoder
+import com.v2ray.ang.util.SubscriptionContentConverter
 import com.v2ray.ang.util.Utils
 import java.net.URI
 
@@ -521,7 +522,15 @@ object AngConfigManager {
                 return SubscriptionUpdateResult(failureCount = 1)
             }
 
-            val count = parseConfigViaSub(configText, it.guid, false)
+            // Per-subscription content switches: decode base64 blobs and/or turn
+            // custom JSON configs into regular share links before parsing.
+            val preparedText = SubscriptionContentConverter.convert(
+                content = configText,
+                decodeBase64 = it.subscription.decodeBase64ToText,
+                customToLinks = it.subscription.convertCustomToLinks,
+            )
+
+            val count = parseConfigViaSub(preparedText, it.guid, false)
             if (count > 0) {
                 it.subscription.lastUpdated = System.currentTimeMillis()
                 MmkvManager.encodeSubscription(it.guid, it.subscription)
