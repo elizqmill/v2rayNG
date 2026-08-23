@@ -93,14 +93,24 @@ jobs:
         fileName: "android_keystore.jks"
         encodedString: ${{ secrets.APP_KEYSTORE_BASE64 }}
 
+    - name: Resolve release tag
+      id: tag
+      run: |
+        if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+          echo "value=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+        else
+          VERSION=$(grep -m1 'versionName' ${{ github.workspace }}/V2rayNG/app/build.gradle.kts | grep -oP '"\K[^"]+')
+          DATE=$(date +'%Y%m%d-%H%M')
+          echo "value=v${VERSION}-wl-${DATE}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build APK
       run: |
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew licenseFdroidReleaseReport
         ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
-    
+
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v7
       if: ${{  success() }}
@@ -128,6 +138,24 @@ jobs:
       with:
         name: universal-apk
         path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*universal*.apk
+
+    - name: Create GitHub Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        file: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk
+        tag: ${{ steps.tag.outputs.value }}
+        release_name: ${{ steps.tag.outputs.value }}
+        body: |
+          ${{ github.event.head_commit.message }}
+
+          ---
+
+          **APK:** `universal` / `arm64-v8a` / `armeabi-v7a` / `x86_64` / `x86`
+          Не знаете архитектуру устройства — берите `universal`.
+          Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
+        file_glob: true
+        prerelease: false
+        overwrite_files: true
 
   sign-and-release:
     needs: build

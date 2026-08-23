@@ -179,11 +179,13 @@ class MainViewModel(
             MainAction.RefreshGroups -> setupGroupTab(forceRefresh = true)
             MainAction.TestAllServers -> testAllRealPing(true)
             MainAction.TestRealAllServers -> testAllRealPing()
+            MainAction.WhitelistSearch -> whitelistSearch()
             MainAction.CancelTesting -> cancelAllPing()
             MainAction.RemoveAllServers -> removeAllServerAsync()
             MainAction.RemoveDuplicateServers -> removeDuplicateServerAsync()
             MainAction.RemoveInvalidServers -> removeInvalidServerAsync()
             MainAction.SortByTestResults -> sortByTestResultsAsync()
+            MainAction.SortBySpeedResults -> sortBySpeedResultsAsync()
             MainAction.UpdateSubscriptions -> importConfigViaSub()
             MainAction.ExportAll -> exportAllAsync()
             is MainAction.SelectGroup -> subscriptionIdChanged(action.groupId)
@@ -191,7 +193,7 @@ class MainViewModel(
             is MainAction.RemoveServer -> removeServerAndRefresh(action.guid)
             is MainAction.Search -> filterConfig(action.query)
             is MainAction.ImportBatchConfig -> importBatchConfig(action.configText)
-            MainAction.LocateHandled -> consumeLocateTarget()
+            is MainAction.LocateHandled -> consumeLocateTarget(action.target)
             is MainAction.ShareQRCode -> {
                 val bitmap = dataSource.share2QRCode(action.guid)
                 _uiState.update { it.copy(shareQRCodeBitmap = bitmap) }
@@ -251,7 +253,10 @@ class MainViewModel(
             ServersCache(
                 guid = guid,
                 profile = profile.copy(),
-                testDelayMillis = affiliation?.testDelayMillis ?: 0L
+                testDelayMillis = affiliation?.testDelayMillis ?: 0L,
+                testSpeedBytesPerSec = affiliation?.testSpeedBytesPerSec ?: 0L,
+                testSpeedStable = affiliation?.testSpeedStable ?: false,
+                testSpeedPresent = affiliation?.testSpeedPresent ?: false
             )
         }
 
@@ -580,6 +585,28 @@ class MainViewModel(
         subs.forEach { dataSource.sortByTestResultsForSub(it) }
     }
 
+    private fun sortBySpeedResultsAsync() {
+        launchLoading {
+            withContext(ioDispatcher) {
+                try {
+                    val subs = if (uiState.value.selectedGroupId.isEmpty()) {
+                        dataSource.getSubsList()
+                    } else {
+                        listOf(uiState.value.selectedGroupId)
+                    }
+                    subs.forEach { dataSource.sortBySpeedResultsForSub(it) }
+                    cacheMutex.withLock { groupDataCache.clear() }
+                    setupGroupTab(forceRefresh = true)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Sort by speed results failed", e)
+                    toastError(R.string.toast_failure)
+                }
+            }
+        }
+    }
+
     fun subscriptionIdChanged(id: String) {
         if (_uiState.value.groups.none { it.id == id }) return
         mutableServersForGroup(id)
@@ -726,6 +753,39 @@ class MainViewModel(
         dataSource.testCurrentServerRealPing()
     }
 
+    /**
+     * Whitelist search: reuse already-measured delays, download-probe every
+     * responsive profile and record per-profile speeds next to the ping.
+     * Existing results are intentionally NOT cleared first: known delays let
+     * the search jump straight into the speed stage.
+     */
+    fun whitelistSearch() {
+        dataSource.cancelAllPing()
+        val groupId = uiState.value.selectedGroupId
+        val servers = currentServers()
+        if (servers.isEmpty()) {
+            _uiState.update { it.copy(isTesting = false) }
+            return
+        }
+        testingGroupId = groupId
+        _uiState.update {
+            it.copy(
+                isTesting = true,
+                status = MainStatus.Testing
+            )
+        }
+        viewModelScope.launch(ioDispatcher) {
+            cacheMutex.withLock { groupDataCache.remove(groupId) }
+            dataSource.sendMsg2TestService(
+                TestServiceMessage(
+                    key = AppConfig.MSG_WL_SEARCH_START,
+                    subscriptionId = groupId,
+                    serverGuids = if (keywordFilter.isNotEmpty()) servers.map { it.guid } else emptyList(),
+                )
+            )
+        }
+    }
+
     private fun onTestsFinished() {
         viewModelScope.launch(ioDispatcher) {
             cacheMutex.withLock { groupDataCache.clear() }
@@ -744,21 +804,24 @@ class MainViewModel(
         val selected = dataSource.getSelectServer() ?: return
         val profile = dataSource.decodeServerConfig(selected) ?: return
         val groupId = profile.subscriptionId
-        if (_uiState.value.groups.none { it.id == groupId }) return
+        val groupIndex =
+            _uiState.value.groups.indexOfFirst { it.id == groupId }.takeIf { it >= 0 } ?: return
         viewModelScope.launch(ioDispatcher) {
-            updateGroupUi(groupId, loadGroup(groupId))
-            if (_uiState.value.selectedGroupId != groupId) {
-                dataSource.setSelectedSubscriptionId(groupId)
-            }
-            val target = LocateTarget(groupId, selected)
+            val position =
+                loadGroup(groupId).indexOfFirst { it.guid == selected }.takeIf { it >= 0 }
+                    ?: return@launch
             _uiState.update {
-                it.copy(selectedGroupId = groupId, locateTarget = target)
+                it.copy(locateTarget = LocateTarget(groupId, groupIndex, position))
             }
         }
     }
 
-    private fun consumeLocateTarget() {
-        _uiState.update { it.copy(locateTarget = null) }
+    fun getPosition(guid: String): Int = currentServers().indexOfFirst { it.guid == guid }
+
+    private fun consumeLocateTarget(target: LocateTarget) {
+        _uiState.update { state ->
+            if (state.locateTarget == target) state.copy(locateTarget = null) else state
+        }
     }
 
     // ---------- Running state ----------

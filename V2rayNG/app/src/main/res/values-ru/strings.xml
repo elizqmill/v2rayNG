@@ -548,4 +548,22 @@
     <string name="connection_test_empty_message">подробности отсутствуют</string>
     <string name="value_unknown">неизвестно</string>
 
+    <string name="title_wl_search">Поиск стабильных профилей (проверка БС)</string>
+    <string name="title_wl_settings">Поиск по белым спискам</string>
+    <string name="title_pref_wl_tcping_timeout_ms">Таймаут TCP-пинга, мс (300–10000)</string>
+    <string name="title_pref_wl_download_size_mb">Размер тестового файла, МБ (1–100)</string>
+    <string name="title_pref_wl_download_timeout_seconds">Таймаут скачивания, с (3–120)</string>
+    <string name="title_pref_wl_download_attempts">Количество прогонов (1–10)</string>
+    <string name="title_sort_by_speed_results">Сортировать по скорости</string>
+    <string name="sub_decode_base64_to_text">Base64 в текст</string>
+    <string name="sub_decode_base64_to_text_tip">Декодировать base64-ответ подписки в обычный список ссылок при обновлении</string>
+    <string name="sub_convert_custom_to_links">Кастомные в ссылки</string>
+    <string name="sub_convert_custom_to_links_tip">Превращать кастомные JSON-профили в обычные ссылки при обновлении</string>
+    <string name="acc_decrypt_link">Расшифровать ссылку подписки</string>
+    <string name="sub_link_decoded">Ссылка расшифрована</string>
+    <string name="sub_link_already_plain">Это уже обычная ссылка — расшифровывать нечего</string>
+    <string name="sub_link_not_supported">Эта ссылка не подходит для расшифровки</string>
+    <string name="sub_link_decrypt_failed">Не удалось расшифровать ссылку</string>
+    <string name="sub_link_no_url_inside">Внутри расшифрованных данных нет HTTP(S) ссылки</string>
+
 </resources>

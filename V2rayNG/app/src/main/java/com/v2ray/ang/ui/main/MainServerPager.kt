@@ -30,7 +30,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.ang.R
-import com.v2ray.ang.dto.LocateTarget
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.ServersCache
 import com.v2ray.ang.extension.isComplexType
@@ -71,7 +69,6 @@ fun GroupPagerPage(
     groupId: String,
     mainViewModel: MainViewModel,
     selectedGuid: String?,
-    locateTarget: LocateTarget?,
     doubleColumnDisplay: Boolean,
     confirmRemove: Boolean,
     searchQuery: String,
@@ -92,7 +89,6 @@ fun GroupPagerPage(
     ServerListPage(
         servers = servers,
         selectedGuid = selectedGuid,
-        locateTarget = locateTarget?.takeIf { it.groupId == groupId },
         canReorder = canReorder,
         doubleColumnDisplay = doubleColumnDisplay,
         subscriptionId = groupId,
@@ -105,7 +101,6 @@ fun GroupPagerPage(
         onShareServer = onShareServer,
         onMoreServer = onMoreServer,
         onRemoveServer = onRemoveServer,
-        onLocateHandled = { mainViewModel.onAction(MainAction.LocateHandled) },
         onMoveServer = { fromIndex, toIndex -> mainViewModel.moveServer(groupId, fromIndex, toIndex) },
         contentPadding = contentPadding
     )
@@ -115,7 +110,6 @@ fun GroupPagerPage(
 private fun ServerListPage(
     servers: List<ServersCache>,
     selectedGuid: String?,
-    locateTarget: LocateTarget?,
     canReorder: Boolean,
     doubleColumnDisplay: Boolean,
     subscriptionId: String,
@@ -128,7 +122,6 @@ private fun ServerListPage(
     onShareServer: (String, ProfileItem) -> Unit,
     onMoreServer: (String, ProfileItem) -> Unit,
     onRemoveServer: (String) -> Unit,
-    onLocateHandled: () -> Unit,
     onMoveServer: (Int, Int) -> Unit,
     contentPadding: PaddingValues
 ) {
@@ -141,8 +134,6 @@ private fun ServerListPage(
                 onMoveServer(from.index, to.index)
             }
         } else null
-
-        LocateTargetEffect(locateTarget, servers, gridState, onLocateHandled)
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -190,8 +181,6 @@ private fun ServerListPage(
                 onMoveServer(from.index, to.index)
             }
         } else null
-
-        LocateTargetEffect(locateTarget, servers, listState, onLocateHandled)
 
         LazyColumn(
             state = listState,
@@ -242,38 +231,6 @@ private fun ServerListPage(
 }
 
 @Composable
-private fun LocateTargetEffect(
-    target: LocateTarget?,
-    servers: List<ServersCache>,
-    state: LazyListState,
-    onHandled: () -> Unit,
-) {
-    if (target == null) return
-    LaunchedEffect(target, servers) {
-        val index = servers.indexOfFirst { it.guid == target.serverGuid }
-        if (index < 0) return@LaunchedEffect
-        state.scrollToItem(index, -state.layoutInfo.viewportSize.height / 3)
-        onHandled()
-    }
-}
-
-@Composable
-private fun LocateTargetEffect(
-    target: LocateTarget?,
-    servers: List<ServersCache>,
-    state: LazyGridState,
-    onHandled: () -> Unit,
-) {
-    if (target == null) return
-    LaunchedEffect(target, servers) {
-        val index = servers.indexOfFirst { it.guid == target.serverGuid }
-        if (index < 0) return@LaunchedEffect
-        state.scrollToItem(index, -state.layoutInfo.viewportSize.height / 3)
-        onHandled()
-    }
-}
-
-@Composable
 private fun ServerItemRow(
     serverCache: ServersCache,
     selectedGuid: String?,
@@ -296,6 +253,9 @@ private fun ServerItemRow(
             ?: AngConfigManager.generateDescription(profile),
         typeDescription = getProtocolDescription(profile),
         testDelayMillis = serverCache.testDelayMillis,
+        testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
+        testSpeedStable = serverCache.testSpeedStable,
+        testSpeedPresent = serverCache.testSpeedPresent,
         isSelected = serverCache.guid == selectedGuid,
         subscriptionRemarks = subRemarks,
         doubleColumnDisplay = false,
@@ -329,6 +289,9 @@ private fun ServerItemColumn(
             statistics = profile.description.nullIfBlank() ?: AngConfigManager.generateDescription(profile),
             typeDescription = getProtocolDescription(profile),
             testDelayMillis = serverCache.testDelayMillis,
+            testSpeedBytesPerSec = serverCache.testSpeedBytesPerSec,
+            testSpeedStable = serverCache.testSpeedStable,
+            testSpeedPresent = serverCache.testSpeedPresent,
             isSelected = serverCache.guid == selectedGuid,
             subscriptionRemarks = subRemarks,
             doubleColumnDisplay = doubleColumnDisplay,
@@ -348,6 +311,9 @@ fun ServerListItem(
     statistics: String,
     typeDescription: String,
     testDelayMillis: Long,
+    testSpeedBytesPerSec: Long = 0L,
+    testSpeedStable: Boolean = false,
+    testSpeedPresent: Boolean = false,
     isSelected: Boolean,
     subscriptionRemarks: String,
     doubleColumnDisplay: Boolean,
@@ -456,7 +422,28 @@ fun ServerListItem(
             Spacer(modifier = Modifier.height(6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(typeDescription, style = MaterialTheme.typography.bodySmall, color = colorConfigType, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(testResult, style = MaterialTheme.typography.bodySmall, color = if (testDelayMillis < 0L) colorPingRed else colorPing, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (testSpeedPresent) {
+                        // A probed profile always carries a number — even 0 KB/s
+                        // beats silence; only "never tested" hides the label.
+                        val speedText = formatTestSpeed(maxOf(0L, testSpeedBytesPerSec))
+                        // Color by absolute throughput, not by the stability flag:
+                        // a profile that nearly finished in time still carried
+                        // plenty of speed and must not read as "dead".
+                        val speedColor = when {
+                            testSpeedBytesPerSec >= 1_000_000L -> colorPing          // ≥ ~1 MB/s: healthy
+                            testSpeedBytesPerSec >= 200_000L -> colorConfigType      // 200 KB/s…1 MB/s: usable
+                            else -> colorPingRed                                     // shaped / dead line
+                        }
+                        Text(
+                            speedText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = speedColor,
+                            maxLines = 1
+                        )
+                    }
+                    Text(testResult, style = MaterialTheme.typography.bodySmall, color = if (testDelayMillis < 0L) colorPingRed else colorPing, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
@@ -494,4 +481,11 @@ internal suspend fun PagerState.navigateToPageOptimized(
     } else {
         scrollToPage(target)
     }
+}
+
+/** Human readable download speed for the profile list: "-1" probe failures render as a dash. */
+internal fun formatTestSpeed(speedBytesPerSec: Long): String = when {
+    speedBytesPerSec < 0L -> "—"
+    speedBytesPerSec >= 1024L * 1024L -> String.format("%.1f MB/s", speedBytesPerSec / 1048576.0)
+    else -> String.format("%.0f KB/s", speedBytesPerSec / 1024.0)
 }

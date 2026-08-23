@@ -3,6 +3,7 @@ package com.v2ray.ang.ui.subscription
 import android.os.Bundle
 import android.text.TextUtils
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -18,8 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,9 +48,11 @@ import com.v2ray.ang.ui.compose.FormTextField
 import com.v2ray.ang.ui.compose.NavigationBarsSpacer
 import com.v2ray.ang.ui.compose.SettingsSwitchItem
 import com.v2ray.ang.ui.compose.verticalScrollbar
+import com.v2ray.ang.util.SubLinkDecoder
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SubEditActivity : BaseComponentActivity() {
     private val editSubId by lazy { intent.getStringExtra("subId").orEmpty() }
@@ -141,12 +147,42 @@ fun SubEditScreen(
     var autoUpdate by rememberSaveable { mutableStateOf(initial.autoUpdate) }
     var updateInterval by rememberSaveable { mutableStateOf(initial.updateInterval.toString()) }
     var allowInsecureUrl by rememberSaveable { mutableStateOf(initial.allowInsecureUrl) }
+    var decodeBase64ToText by rememberSaveable { mutableStateOf(initial.decodeBase64ToText) }
+    var convertCustomToLinks by rememberSaveable { mutableStateOf(initial.convertCustomToLinks) }
     var prevProfile by rememberSaveable { mutableStateOf(initial.prevProfile ?: "") }
     var nextProfile by rememberSaveable { mutableStateOf(initial.nextProfile ?: "") }
 
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
     val confirmRemove = MmkvManager.decodeSettingsBool(AppConfig.PREF_CONFIRM_REMOVE, false)
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun decodeLink() {
+        val raw = url
+        if (raw.isBlank()) {
+            context.toast(R.string.sub_link_not_supported)
+            return
+        }
+        scope.launch(Dispatchers.Default) {
+            // RSA-4096 в happ://crypt5 — считаем вне главного потока.
+            val result = SubLinkDecoder.decode(raw)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is SubLinkDecoder.Result.Success -> {
+                        url = result.url
+                        context.toastSuccess(R.string.sub_link_decoded)
+                    }
+
+                    SubLinkDecoder.Result.AlreadyPlain ->
+                        context.toast(R.string.sub_link_already_plain)
+
+                    is SubLinkDecoder.Result.Failed ->
+                        context.toast(result.messageRes)
+                }
+            }
+        }
+    }
 
     fun buildSubItem(): SubscriptionItem {
         val subItem = MmkvManager.decodeSubscription(editSubId) ?: SubscriptionItem()
@@ -161,6 +197,8 @@ fun SubEditScreen(
         subItem.prevProfile = prevProfile
         subItem.nextProfile = nextProfile
         subItem.allowInsecureUrl = allowInsecureUrl
+        subItem.decodeBase64ToText = decodeBase64ToText
+        subItem.convertCustomToLinks = convertCustomToLinks
         return subItem
     }
 
@@ -197,7 +235,18 @@ fun SubEditScreen(
                 .padding(bottom = 36.dp)
         ) {
             FormTextField(stringResource(R.string.sub_setting_remarks), remarks, { remarks = it })
-            FormTextField(stringResource(R.string.sub_setting_url), url, { url = it })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FormTextField(
+                    stringResource(R.string.sub_setting_url), url, { url = it },
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = { decodeLink() }) {
+                    Icon(
+                        painterResource(R.drawable.ic_decrypt_24dp),
+                        contentDescription = stringResource(R.string.acc_decrypt_link)
+                    )
+                }
+            }
             FormTextField(stringResource(R.string.sub_setting_user_agent), userAgent, { userAgent = it })
             FormTextField(stringResource(R.string.sub_setting_request_headers), requestHeaders, { requestHeaders = it })
             FormTextField(stringResource(R.string.sub_setting_filter), filter, { filter = it })
@@ -222,6 +271,18 @@ fun SubEditScreen(
                 title = stringResource(R.string.sub_allow_insecure_url),
                 checked = allowInsecureUrl,
                 onCheckedChange = { allowInsecureUrl = it }
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.sub_decode_base64_to_text),
+                summary = stringResource(R.string.sub_decode_base64_to_text_tip),
+                checked = decodeBase64ToText,
+                onCheckedChange = { decodeBase64ToText = it }
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.sub_convert_custom_to_links),
+                summary = stringResource(R.string.sub_convert_custom_to_links_tip),
+                checked = convertCustomToLinks,
+                onCheckedChange = { convertCustomToLinks = it }
             )
             FormDropdownField(
                 label = stringResource(R.string.sub_setting_pre_profile),

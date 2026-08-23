@@ -89,6 +89,11 @@ object AppConfig {
     const val PREF_AUTO_REMOVE_INVALID_AFTER_TEST = "pref_auto_remove_invalid_after_test"
     const val PREF_AUTO_SORT_AFTER_TEST = "pref_auto_sort_after_test"
     const val PREF_REAL_PING_CONCURRENCY = "pref_real_ping_concurrency"
+    const val PREF_WL_TARGET_COUNT = "pref_wl_target_count"
+    const val PREF_WL_TCPING_TIMEOUT_MS = "pref_wl_tcping_timeout_ms"
+    const val PREF_WL_DOWNLOAD_SIZE_MB = "pref_wl_download_size_mb"
+    const val PREF_WL_DOWNLOAD_TIMEOUT_SECONDS = "pref_wl_download_timeout_seconds"
+    const val PREF_WL_DOWNLOAD_ATTEMPTS = "pref_wl_download_attempts"
 
     /** Cache keys. */
     const val CACHE_SUBSCRIPTION_ID = "cache_subscription_id"
@@ -186,6 +191,7 @@ object AppConfig {
     const val MSG_MEASURE_CONFIG_SUCCESS = 72
     const val MSG_MEASURE_CONFIG_NOTIFY = 73
     const val MSG_MEASURE_CONFIG_FINISH = 74
+    const val MSG_WL_SEARCH_START = 9
 
     const val MSG_SUB_UPDATE_START = 8
     const val MSG_SUB_UPDATE_CANCEL = 81

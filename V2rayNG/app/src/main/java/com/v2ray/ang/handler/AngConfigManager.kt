@@ -25,6 +25,7 @@ import com.v2ray.ang.util.HttpUtil
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.QRCodeDecoder
+import com.v2ray.ang.util.SubscriptionContentConverter
 import com.v2ray.ang.util.Utils
 import java.net.URI
 
@@ -521,7 +522,15 @@ object AngConfigManager {
                 return SubscriptionUpdateResult(failureCount = 1)
             }
 
-            val count = parseConfigViaSub(configText, it.guid, false)
+            // Per-subscription content switches: decode base64 blobs and/or turn
+            // custom JSON configs into regular share links before parsing.
+            val preparedText = SubscriptionContentConverter.convert(
+                content = configText,
+                decodeBase64 = it.subscription.decodeBase64ToText,
+                customToLinks = it.subscription.convertCustomToLinks,
+            )
+
+            val count = parseConfigViaSub(preparedText, it.guid, false)
             if (count > 0) {
                 it.subscription.lastUpdated = System.currentTimeMillis()
                 MmkvManager.encodeSubscription(it.guid, it.subscription)
@@ -570,6 +579,28 @@ object AngConfigManager {
                 guid to if (delay <= 0L) Long.MAX_VALUE else delay
             }
             .sortedBy { it.second }
+            .map { it.first }
+            .toMutableList()
+        MmkvManager.encodeServerList(sorted, subId)
+    }
+
+    /**
+     * Sorts servers by download speed results for a subscription.
+     * Faster profiles first; untested (0) and failed (-1) sink to the bottom.
+     *
+     * @param subId The subscription ID.
+     */
+    fun sortBySpeedResultsForSub(subId: String) {
+        val serverList = MmkvManager.decodeServerList(subId)
+        if (serverList.isEmpty()) return
+
+        val sorted = serverList
+            .map { guid ->
+                val speed =
+                    MmkvManager.decodeServerAffiliationInfo(guid)?.testSpeedBytesPerSec ?: 0L
+                guid to if (speed <= 0L) Long.MIN_VALUE else speed
+            }
+            .sortedByDescending { it.second }
             .map { it.first }
             .toMutableList()
         MmkvManager.encodeServerList(sorted, subId)
