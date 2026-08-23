@@ -4,6 +4,7 @@ import android.content.Context
 import android.text.TextUtils
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.dto.ConfigResult
 import com.v2ray.ang.dto.CoreConfigContext
@@ -80,6 +81,42 @@ object CoreConfigManager {
                 guid = guid,
                 errorMessage = "Failed to get V2ray config: ${e.message ?: e.javaClass.simpleName}"
             )
+        }
+    }
+
+    /**
+     * Build a lightweight latency-test configuration plus a loopback SOCKS inbound
+     * on the given port, used by the whitelist download probe to push traffic
+     * through the profile under test.
+     */
+    fun getV2rayConfig4SpeedtestWithSocksInbound(guid: String, socksPort: Int): ConfigResult {
+        val context = AngApplication.application
+        val base = getV2rayConfig4Speedtest(context, guid)
+        if (!base.status) {
+            return base
+        }
+        return try {
+            val json = JsonUtil.parseString(base.content)
+                ?: return ConfigResult(status = false, guid = guid, errorMessage = "Failed to parse probe config")
+            val inbound = JsonObject().apply {
+                addProperty("tag", "wl-probe")
+                addProperty("listen", AppConfig.LOOPBACK)
+                addProperty("port", socksPort)
+                addProperty("protocol", "socks")
+                add("settings", JsonObject().apply {
+                    addProperty("auth", "noauth")
+                    addProperty("udp", false)
+                })
+                add("sniffing", JsonObject().apply {
+                    addProperty("enabled", false)
+                })
+            }
+            val inbounds = json.getAsJsonArray("inbounds") ?: com.google.gson.JsonArray().also { json.add("inbounds", it) }
+            inbounds.add(inbound)
+            base.copy(content = JsonUtil.toJsonPretty(json) ?: base.content)
+        } catch (e: Exception) {
+            LogUtil.e(AppConfig.TAG, "Failed to add SOCKS inbound for whitelist probe", e)
+            ConfigResult(status = false, guid = guid, errorMessage = "Failed to build probe config")
         }
     }
 

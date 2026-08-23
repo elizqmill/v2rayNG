@@ -34,6 +34,12 @@ import kotlin.random.Random
 
 object SettingsManager {
 
+    private const val WL_DEFAULT_TARGET_COUNT = 10
+    private const val WL_DEFAULT_TCPING_TIMEOUT_MS = 1_000
+    private const val WL_DEFAULT_DOWNLOAD_SIZE_MB = 10
+    private const val WL_DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 10
+    private const val WL_DEFAULT_DOWNLOAD_ATTEMPTS = 2
+
     @Volatile
     private var runtimeSocksPort: Int? = null
 
@@ -384,6 +390,47 @@ object SettingsManager {
     fun getRealPingConcurrency(): Int {
         val value = MmkvManager.decodeSettingsString(AppConfig.PREF_REAL_PING_CONCURRENCY)?.toIntOrNull() ?: 16
         return value.coerceIn(1, 128)
+    }
+
+    /**
+     * Whitelist search: how many stable profiles to find (clamped to 1..20).
+     */
+    fun getWlTargetCount(): Int {
+        val value = MmkvManager.decodeSettingsString(AppConfig.PREF_WL_TARGET_COUNT)?.toIntOrNull() ?: WL_DEFAULT_TARGET_COUNT
+        return value.coerceIn(1, 20)
+    }
+
+    /**
+     * Whitelist search: TCP ping timeout in milliseconds (clamped to 300..10000).
+     */
+    fun getWlTcpingTimeoutMs(): Int {
+        val value = MmkvManager.decodeSettingsString(AppConfig.PREF_WL_TCPING_TIMEOUT_MS)?.toIntOrNull() ?: WL_DEFAULT_TCPING_TIMEOUT_MS
+        return value.coerceIn(300, 10_000)
+    }
+
+    /**
+     * Whitelist search: download test file size in megabytes (clamped to 1..100).
+     */
+    fun getWlDownloadSizeMb(): Int {
+        val value = MmkvManager.decodeSettingsString(AppConfig.PREF_WL_DOWNLOAD_SIZE_MB)?.toIntOrNull() ?: WL_DEFAULT_DOWNLOAD_SIZE_MB
+        return value.coerceIn(1, 100)
+    }
+
+    /**
+     * Whitelist search: per-attempt download timeout in seconds (clamped to 3..120).
+     */
+    fun getWlDownloadTimeoutSeconds(): Int {
+        val value = MmkvManager.decodeSettingsString(AppConfig.PREF_WL_DOWNLOAD_TIMEOUT_SECONDS)?.toIntOrNull()
+            ?: WL_DEFAULT_DOWNLOAD_TIMEOUT_SECONDS
+        return value.coerceIn(3, 120)
+    }
+
+    /**
+     * Whitelist search: download attempts per profile (clamped to 1..10).
+     */
+    fun getWlDownloadAttempts(): Int {
+        val value = MmkvManager.decodeSettingsString(AppConfig.PREF_WL_DOWNLOAD_ATTEMPTS)?.toIntOrNull() ?: WL_DEFAULT_DOWNLOAD_ATTEMPTS
+        return value.coerceIn(1, 10)
     }
 
     /**

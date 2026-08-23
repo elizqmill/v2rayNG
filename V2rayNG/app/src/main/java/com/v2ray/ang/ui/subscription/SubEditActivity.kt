@@ -141,6 +141,8 @@ fun SubEditScreen(
     var autoUpdate by rememberSaveable { mutableStateOf(initial.autoUpdate) }
     var updateInterval by rememberSaveable { mutableStateOf(initial.updateInterval.toString()) }
     var allowInsecureUrl by rememberSaveable { mutableStateOf(initial.allowInsecureUrl) }
+    var decodeBase64ToText by rememberSaveable { mutableStateOf(initial.decodeBase64ToText) }
+    var convertCustomToLinks by rememberSaveable { mutableStateOf(initial.convertCustomToLinks) }
     var prevProfile by rememberSaveable { mutableStateOf(initial.prevProfile ?: "") }
     var nextProfile by rememberSaveable { mutableStateOf(initial.nextProfile ?: "") }
 
@@ -161,6 +163,8 @@ fun SubEditScreen(
         subItem.prevProfile = prevProfile
         subItem.nextProfile = nextProfile
         subItem.allowInsecureUrl = allowInsecureUrl
+        subItem.decodeBase64ToText = decodeBase64ToText
+        subItem.convertCustomToLinks = convertCustomToLinks
         return subItem
     }
 
@@ -222,6 +226,18 @@ fun SubEditScreen(
                 title = stringResource(R.string.sub_allow_insecure_url),
                 checked = allowInsecureUrl,
                 onCheckedChange = { allowInsecureUrl = it }
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.sub_decode_base64_to_text),
+                summary = stringResource(R.string.sub_decode_base64_to_text_tip),
+                checked = decodeBase64ToText,
+                onCheckedChange = { decodeBase64ToText = it }
+            )
+            SettingsSwitchItem(
+                title = stringResource(R.string.sub_convert_custom_to_links),
+                summary = stringResource(R.string.sub_convert_custom_to_links_tip),
+                checked = convertCustomToLinks,
+                onCheckedChange = { convertCustomToLinks = it }
             )
             FormDropdownField(
                 label = stringResource(R.string.sub_setting_pre_profile),

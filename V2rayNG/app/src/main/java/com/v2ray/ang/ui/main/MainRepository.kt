@@ -179,6 +179,10 @@ class MainRepository(
         AngConfigManager.sortByTestResultsForSub(subId)
     }
 
+    override fun sortBySpeedResultsForSub(subId: String) {
+        AngConfigManager.sortBySpeedResultsForSub(subId)
+    }
+
     override fun getSubsList(): List<String> = MmkvManager.decodeSubsList()
 
     override suspend fun importBatchConfig(

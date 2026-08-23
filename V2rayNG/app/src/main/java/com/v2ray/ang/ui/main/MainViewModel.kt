@@ -179,11 +179,13 @@ class MainViewModel(
             MainAction.RefreshGroups -> setupGroupTab(forceRefresh = true)
             MainAction.TestAllServers -> testAllRealPing(true)
             MainAction.TestRealAllServers -> testAllRealPing()
+            MainAction.WhitelistSearch -> whitelistSearch()
             MainAction.CancelTesting -> cancelAllPing()
             MainAction.RemoveAllServers -> removeAllServerAsync()
             MainAction.RemoveDuplicateServers -> removeDuplicateServerAsync()
             MainAction.RemoveInvalidServers -> removeInvalidServerAsync()
             MainAction.SortByTestResults -> sortByTestResultsAsync()
+            MainAction.SortBySpeedResults -> sortBySpeedResultsAsync()
             MainAction.UpdateSubscriptions -> importConfigViaSub()
             MainAction.ExportAll -> exportAllAsync()
             is MainAction.SelectGroup -> subscriptionIdChanged(action.groupId)
@@ -251,7 +253,10 @@ class MainViewModel(
             ServersCache(
                 guid = guid,
                 profile = profile.copy(),
-                testDelayMillis = affiliation?.testDelayMillis ?: 0L
+                testDelayMillis = affiliation?.testDelayMillis ?: 0L,
+                testSpeedBytesPerSec = affiliation?.testSpeedBytesPerSec ?: 0L,
+                testSpeedStable = affiliation?.testSpeedStable ?: false,
+                testSpeedPresent = affiliation?.testSpeedPresent ?: false
             )
         }
 
@@ -580,6 +585,28 @@ class MainViewModel(
         subs.forEach { dataSource.sortByTestResultsForSub(it) }
     }
 
+    private fun sortBySpeedResultsAsync() {
+        launchLoading {
+            withContext(ioDispatcher) {
+                try {
+                    val subs = if (uiState.value.selectedGroupId.isEmpty()) {
+                        dataSource.getSubsList()
+                    } else {
+                        listOf(uiState.value.selectedGroupId)
+                    }
+                    subs.forEach { dataSource.sortBySpeedResultsForSub(it) }
+                    cacheMutex.withLock { groupDataCache.clear() }
+                    setupGroupTab(forceRefresh = true)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Sort by speed results failed", e)
+                    toastError(R.string.toast_failure)
+                }
+            }
+        }
+    }
+
     fun subscriptionIdChanged(id: String) {
         if (_uiState.value.groups.none { it.id == id }) return
         mutableServersForGroup(id)
@@ -724,6 +751,39 @@ class MainViewModel(
     fun testCurrentServerRealPing() {
         _uiState.update { it.copy(status = MainStatus.Testing) }
         dataSource.testCurrentServerRealPing()
+    }
+
+    /**
+     * Whitelist search: reuse already-measured delays, download-probe every
+     * responsive profile and record per-profile speeds next to the ping.
+     * Existing results are intentionally NOT cleared first: known delays let
+     * the search jump straight into the speed stage.
+     */
+    fun whitelistSearch() {
+        dataSource.cancelAllPing()
+        val groupId = uiState.value.selectedGroupId
+        val servers = currentServers()
+        if (servers.isEmpty()) {
+            _uiState.update { it.copy(isTesting = false) }
+            return
+        }
+        testingGroupId = groupId
+        _uiState.update {
+            it.copy(
+                isTesting = true,
+                status = MainStatus.Testing
+            )
+        }
+        viewModelScope.launch(ioDispatcher) {
+            cacheMutex.withLock { groupDataCache.remove(groupId) }
+            dataSource.sendMsg2TestService(
+                TestServiceMessage(
+                    key = AppConfig.MSG_WL_SEARCH_START,
+                    subscriptionId = groupId,
+                    serverGuids = if (keywordFilter.isNotEmpty()) servers.map { it.guid } else emptyList(),
+                )
+            )
+        }
     }
 
     private fun onTestsFinished() {
