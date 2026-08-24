@@ -215,7 +215,14 @@ object SubscriptionContentConverter {
         val ss = ob.optJSONObject("streamSettings")
         val rs = ss?.optJSONObject("realitySettings")
         val enc = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
-        val fp = rs?.optString("fingerprint", "chrome") ?: "chrome"
+        val tlsSettings = ss?.optJSONObject("tlsSettings")
+        val tlsAlpnArr = tlsSettings?.optJSONArray("alpn")
+        val tlsAlpn = tlsAlpnArr?.let { a -> (0 until a.length()).mapNotNull { a.optString(it) }
+            .filter { it.isNotEmpty() }.joinToString(",") } ?: ""
+        val tlsInsecure = tlsSettings?.optBoolean("allowInsecure", false) == true
+        val tlsFp = tlsSettings?.optString("fingerprint", "") ?: ""
+        val fp = rs?.optString("fingerprint", "")?.takeIf { it.isNotEmpty() }
+            ?: tlsFp.takeIf { it.isNotEmpty() } ?: "chrome"
         val pbk = rs?.optString("publicKey", "") ?: ""
         val sid = rs?.optString("shortId", "") ?: ""
         val sni = rs?.optString("serverName", "") ?: ""
@@ -231,6 +238,8 @@ object SubscriptionContentConverter {
             "sni" to sni,
             "type" to type,
         )
+        if (tlsAlpn.isNotEmpty()) params["alpn"] = tlsAlpn
+        if (tlsInsecure) params["allowInsecure"] = "1"
         // Transports are unusable without their parameters
         val wsSettings = ss?.optJSONObject("wsSettings")
         val httpSettings = ss?.optJSONObject("httpSettings")
@@ -257,13 +266,16 @@ object SubscriptionContentConverter {
 
         val addr = ob.optString("server", vnext?.optString("address", "") ?: "")
         val port = if (ob.has("server_port")) ob.getInt("server_port") else vnext?.optInt("port", 0) ?: 0
-        val uuid = ob.optString("uuid", vnext?.optJSONArray("users")?.optJSONObject(0)?.optString("id", "") ?: "")
+        val user0 = vnext?.optJSONArray("users")?.optJSONObject(0)
+        val uuid = ob.optString("uuid", user0?.optString("id", "") ?: "")
+        val alterId = user0?.optInt("alterId", 0) ?: 0
+        val security = user0?.optString("security", "auto") ?: "auto"
 
         linkJson.put("add", addr)
         linkJson.put("port", port.toString())
         linkJson.put("id", uuid)
-        linkJson.put("aid", "0")
-        linkJson.put("scy", "auto")
+        linkJson.put("aid", alterId.toString())
+        linkJson.put("scy", security)
 
         val transport = ob.optJSONObject("transport")
         val stream = ob.optJSONObject("streamSettings")
@@ -273,6 +285,15 @@ object SubscriptionContentConverter {
         val tlsObj = ob.optJSONObject("tls")
         val isTls = tlsObj?.optBoolean("enabled") ?: (stream?.optString("security") == "tls")
         linkJson.put("tls", if (isTls) "tls" else "")
+        val xTls = stream?.optJSONObject("tlsSettings")
+        xTls?.optString("serverName")?.takeIf { it.isNotEmpty() }?.let { linkJson.put("sni", it) }
+        xTls?.optJSONArray("alpn")?.let { a ->
+            val j = (0 until a.length()).mapNotNull { a.optString(it) }.filter { it.isNotEmpty() }
+                .joinToString(",")
+            if (j.isNotEmpty()) linkJson.put("alpn", j)
+        }
+        xTls?.optString("fingerprint")?.takeIf { it.isNotEmpty() }?.let { linkJson.put("fp", it) }
+        if (xTls?.optBoolean("allowInsecure", false) == true) linkJson.put("allowInsecure", 1)
 
         if (net == "ws") {
             val ws = transport ?: stream?.optJSONObject("wsSettings")
@@ -329,13 +350,20 @@ object SubscriptionContentConverter {
         val query = mutableMapOf<String, String>()
         if (!network.isNullOrEmpty()) query["type"] = network
 
+        val tTls = ss?.optJSONObject("tlsSettings") ?: ss?.optJSONObject("realitySettings")
         if (security == "tls" || security == "reality") {
-            val tls = ss?.optJSONObject("tlsSettings") ?: ss?.optJSONObject("realitySettings")
-            tls?.optString("serverName")?.takeIf { it.isNotEmpty() }?.let {
+            tTls?.optString("serverName")?.takeIf { it.isNotEmpty() }?.let {
                 query["sni"] = it
                 query["host"] = it
             }
         }
+        tTls?.optJSONArray("alpn")?.let { a ->
+            val j = (0 until a.length()).mapNotNull { a.optString(it) }.filter { it.isNotEmpty() }
+                .joinToString(",")
+            if (j.isNotEmpty()) query["alpn"] = j
+        }
+        tTls?.optString("fingerprint")?.takeIf { it.isNotEmpty() }?.let { query["fp"] = it }
+        if (tTls?.optBoolean("allowInsecure", false) == true) query["allowInsecure"] = "1"
 
         if (network == "ws") {
             val ws = ss?.optJSONObject("wsSettings")
@@ -471,6 +499,10 @@ object SubscriptionContentConverter {
         if (uuid.isEmpty() || address.isEmpty() || port <= 0) return null
 
         val tls = sbTls(root)
+        val sbAlpnArr = tls?.optJSONArray("alpn")
+        val sbAlpn = sbAlpnArr?.let { a -> (0 until a.length()).mapNotNull { a.optString(it) }
+            .filter { it.isNotEmpty() }.joinToString(",") } ?: ""
+        val sbInsec = tls?.optBoolean("insecure", false) == true
         val reality = tls?.optJSONObject("reality")
         val params = linkedMapOf(
             "encryption" to "none",
@@ -493,6 +525,8 @@ object SubscriptionContentConverter {
         transport?.optJSONObject("headers")?.optString("Host")?.takeIf { it.isNotEmpty() }?.let {
             query.append("&host=").append(URLEncoder.encode(it, "UTF-8"))
         }
+        if (sbAlpn.isNotEmpty()) query.append("&alpn=").append(URLEncoder.encode(sbAlpn, "UTF-8"))
+        if (sbInsec) query.append("&allowInsecure=1")
         val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
         "vless://$uuid@$address:$port?${query.substring(1)}#$encRem"
     } catch (_: Exception) {
@@ -536,10 +570,17 @@ object SubscriptionContentConverter {
 
         val query = mutableMapOf<String, String>()
         query["type"] = sbTransportType(root)
-        sbTls(root)?.optString("server_name")?.takeIf { it.isNotEmpty() }?.let {
+        val sbTlsObj = sbTls(root)
+        sbTlsObj?.optString("server_name")?.takeIf { it.isNotEmpty() }?.let {
             query["sni"] = it
             query["host"] = it
         }
+        sbTlsObj?.optJSONArray("alpn")?.let { a ->
+            val j = (0 until a.length()).mapNotNull { a.optString(it) }.filter { it.isNotEmpty() }
+                .joinToString(",")
+            if (j.isNotEmpty()) query["alpn"] = j
+        }
+        if (sbTlsObj?.optBoolean("insecure", false) == true) query["allowInsecure"] = "1"
         val queryStr = query.entries.sortedBy { it.key }.joinToString("&") {
             "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}"
         }
