@@ -279,6 +279,22 @@ object SubscriptionContentConverter {
                 q?.optJSONObject("header")?.optString("type")?.takeIf { it != "none" }
                     ?.let { params["headerType"] = it }
             }
+            "httpupgrade" -> ss?.optJSONObject("httpupgradeSettings")?.let { h ->
+                h.optString("path")?.takeIf { it.isNotEmpty() }?.let { params["path"] = it }
+                h.optJSONObject("headers")?.optString("Host")
+                    ?.takeIf { it.isNotEmpty() }?.let { params["host"] = it }
+            }
+            "splithttp", "splitHttp", "xhttp" -> ss?.optJSONObject("splitHttpSettings")
+                ?.takeIf { it.length() > 0 } ?: ss?.optJSONObject("xhttpSettings")?.let { x ->
+                x.optString("path")?.takeIf { it.isNotEmpty() }?.let { params["path"] = it }
+                x.optJSONArray("host")?.let { a ->
+                    val j = (0 until a.length()).mapNotNull { a.optString(it) }.filter { it.isNotEmpty() }
+                        .joinToString(",")
+                    if (j.isNotEmpty()) params["host"] = j
+                }
+                x.optString("mode")?.takeIf { it.isNotEmpty() }?.let { params["mode"] = it }
+                x.optJSONObject("extra")?.toString()?.takeIf { it != "null" }?.let { params["extra"] = it }
+            }
         }
         // xhttp transport
         ss?.optJSONObject("xhttpSettings")?.let { x ->
@@ -296,6 +312,9 @@ object SubscriptionContentConverter {
             ?.takeIf { it != "null" && it.isNotEmpty() }?.let { params["fm"] = it }
         // reality spiderX
         rs?.optString("spiderX")?.takeIf { it.isNotEmpty() }?.let { params["spx"] = it }
+        // TLS ECH
+        tlsSettings?.optString("echConfigList")?.takeIf { it.isNotEmpty() }
+            ?.let { params["ech"] = it }
         val query = params.filterValues { it.isNotEmpty() }
             .entries.joinToString("&") { "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}" }
         "vless://${u.getString("id")}@${vn.getString("address")}:${vn.getInt("port")}?$query#$enc"
