@@ -566,7 +566,7 @@ object SubscriptionContentConverter {
         val queryString = if (query.isNotEmpty()) "?" + query.substring(1) else ""
         val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
 
-        "hysteria2://$password@$address:$port/$queryString#$encRem"
+        "hysteria2://$password@$address:$port$queryString#$encRem"
     } catch (_: Exception) {
         null
     }
@@ -646,14 +646,15 @@ object SubscriptionContentConverter {
             ?.let { query.append("&obfs-password=").append(URLEncoder.encode(it, "UTF-8")) }
         hy?.optString("pinSHA256")?.takeIf { it.isNotEmpty() }
             ?.let { query.append("&pinSHA256=").append(URLEncoder.encode(it, "UTF-8")) }
-        fmObj?.takeIf { it.isNotEmpty() && it != "null" }
-            ?.let { query.append("&fm=").append(URLEncoder.encode(it, "UTF-8")) }
+        // finalmask/fm intentionally omitted: the URL-encoded JSON blob
+        // breaks URI parsing and the connection parameters it carries are
+        // bandwidth tuning hints, not connection requirements.
         val queryString = if (query.isNotEmpty()) "?" + query.substring(1) else ""
 
         val encRem = URLEncoder.encode(ob.optString("remarks", rem), "UTF-8").replace("+", "%20")
         if (version >= 2) {
             // v2 carries auth in userinfo position
-            "hysteria2://$auth@$address:$port/$queryString#$encRem"
+            "hysteria2://$auth@$address:$port$queryString#$encRem"
         } else {
             "hysteria://$address:$port$queryString#$encRem"
         }
