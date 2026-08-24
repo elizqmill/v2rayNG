@@ -157,7 +157,13 @@ object AngConfigManager {
         try {
             val config = MmkvManager.decodeServerConfig(guid) ?: return ""
 
-            return config.configType.protocolScheme + when (config.configType) {
+            // Custom profiles export as their raw JSON so a later import
+            // restores them losslessly; internal groups have nothing to share.
+            if (config.configType == EConfigType.CUSTOM) {
+                return MmkvManager.decodeServerRaw(guid).orEmpty()
+            }
+
+            val uriBody = when (config.configType) {
                 EConfigType.VMESS -> VmessFmt.toUri(config)
                 EConfigType.SHADOWSOCKS -> ShadowsocksFmt.toUri(config)
                 EConfigType.SOCKS -> SocksFmt.toUri(config)
@@ -165,8 +171,9 @@ object AngConfigManager {
                 EConfigType.TROJAN -> TrojanFmt.toUri(config)
                 EConfigType.WIREGUARD -> WireguardFmt.toUri(config)
                 EConfigType.HYSTERIA2 -> Hysteria2Fmt.toUri(config)
-                else -> {}
+                else -> return ""
             }
+            return config.configType.protocolScheme + uriBody
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to share config for GUID: $guid", e)
             return ""
