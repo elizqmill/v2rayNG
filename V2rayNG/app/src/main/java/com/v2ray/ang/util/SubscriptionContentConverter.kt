@@ -248,8 +248,54 @@ object SubscriptionContentConverter {
         (wsSettings?.optJSONObject("headers")?.optString("Host")
             ?: httpSettings?.optJSONArray("host")?.optString(0))
             ?.takeIf { it.isNotEmpty() }?.let { params["host"] = it }
-        ss?.optJSONObject("grpcSettings")?.optString("serviceName")
-            ?.takeIf { it.isNotEmpty() }?.let { params["serviceName"] = it }
+        val grpcSettings = ss?.optJSONObject("grpcSettings")
+        grpcSettings?.optString("serviceName")?.takeIf { it.isNotEmpty() }?.let { params["serviceName"] = it }
+        grpcSettings?.optString("mode")?.takeIf { it.isNotEmpty() }?.let { params["mode"] = it }
+        grpcSettings?.optString("authority")?.takeIf { it.isNotEmpty() }?.let { params["authority"] = it }
+        // multi-host http outbound: Host is an array
+        httpSettings?.optJSONArray("host")?.let { a ->
+            val j = (0 until a.length()).mapNotNull { a.optString(it) }.filter { it.isNotEmpty() }
+                .joinToString(",")
+            if (j.isNotEmpty()) params["host"] = j
+        }
+        // tcp/kcp/quic header types and kcp tuning
+        when (type) {
+            "tcp" -> ss?.optJSONObject("tcpSettings")?.optJSONObject("header")
+                ?.optString("type")?.takeIf { it != "none" }?.let { params["headerType"] = it }
+            "kcp" -> {
+                ss?.optJSONObject("kcpSettings")?.optJSONObject("header")
+                    ?.optString("type")?.takeIf { it != "none" }?.let { params["headerType"] = it }
+                ss?.optJSONObject("kcpSettings")?.optString("seed")
+                    ?.takeIf { it.isNotEmpty() }?.let { params["seed"] = it }
+                ss?.optJSONObject("kcpSettings")?.optInt("mtu")?.takeIf { it > 0 }
+                    ?.let { params["mtu"] = it.toString() }
+                ss?.optJSONObject("kcpSettings")?.optInt("tti")?.takeIf { it > 0 }
+                    ?.let { params["tti"] = it.toString() }
+            }
+            "quic" -> {
+                val q = ss?.optJSONObject("quicSettings")
+                q?.optString("security")?.takeIf { it.isNotEmpty() }?.let { params["quicSecurity"] = it }
+                q?.optString("key")?.takeIf { it.isNotEmpty() }?.let { params["key"] = it }
+                q?.optJSONObject("header")?.optString("type")?.takeIf { it != "none" }
+                    ?.let { params["headerType"] = it }
+            }
+        }
+        // xhttp transport
+        ss?.optJSONObject("xhttpSettings")?.let { x ->
+            x.optString("path")?.takeIf { it.isNotEmpty() }?.let { params["path"] = it }
+            x.optJSONArray("host")?.let { a ->
+                val j = (0 until a.length()).mapNotNull { a.optString(it) }.filter { it.isNotEmpty() }
+                    .joinToString(",")
+                if (j.isNotEmpty()) params["host"] = j
+            }
+            x.optString("mode")?.takeIf { it.isNotEmpty() }?.let { params["mode"] = it }
+            x.optJSONObject("extra")?.toString()?.takeIf { it != "null" }?.let { params["extra"] = it }
+        }
+        // shop QUIC tuning block (finalmask) rides along as fm
+        ss?.optJSONObject("finalmask")?.toString()
+            ?.takeIf { it != "null" && it.isNotEmpty() }?.let { params["fm"] = it }
+        // reality spiderX
+        rs?.optString("spiderX")?.takeIf { it.isNotEmpty() }?.let { params["spx"] = it }
         val query = params.filterValues { it.isNotEmpty() }
             .entries.joinToString("&") { "${it.key}=${URLEncoder.encode(it.value, "UTF-8")}" }
         "vless://${u.getString("id")}@${vn.getString("address")}:${vn.getInt("port")}?$query#$enc"
@@ -332,7 +378,9 @@ object SubscriptionContentConverter {
         val ui = android.util.Base64.encodeToString(credentials.toByteArray(), android.util.Base64.NO_WRAP)
         val finalRem = ob.optString("remarks", rem)
         val encRem = URLEncoder.encode(finalRem, "UTF-8").replace("+", "%20")
-        "ss://$ui@$address:$port#$encRem"
+        val plugin = ob.optString("plugin")
+        val pluginQ = if (plugin.isNullOrEmpty()) "" else "/?plugin=" + URLEncoder.encode(plugin, "UTF-8")
+        "ss://$ui@$address:$port$pluginQ#$encRem"
     } catch (_: Exception) {
         null
     }
@@ -453,16 +501,23 @@ object SubscriptionContentConverter {
         else serverObj?.optInt("port", 0) ?: 0
         if (address.isEmpty() || port <= 0) return null
 
-        val hy = ob.optJSONObject("streamSettings")?.optJSONObject("hysteriaSettings")
+        val stream = ob.optJSONObject("streamSettings")
+        val hy = stream?.optJSONObject("hysteriaSettings")
         val version = hy?.optInt("version")
             ?: settings?.optInt("version")
             ?: if (ob.optString("protocol") == "hysteria2") 2 else 1
+        // Our parser has no hysteria v1 - keep the entry as a custom config
+        // instead of emitting a dead link.
+        if (version < 2) return null
         val auth = hy?.optString("auth")
             ?: serverObj?.optString("password")
             ?: settings?.optString("auth")
             ?: ""
 
         val tls = ob.optJSONObject("streamSettings")?.optJSONObject("tlsSettings")
+        val fmObj = stream?.optJSONObject("finalmask")?.toString()
+            ?: ob.optJSONObject("streamSettings")?.optJSONObject("finalmask")?.toString()
+
         val sni = tls?.optString("serverName")
         val alpn = tls?.optJSONArray("alpn")?.optString(0)
 
@@ -471,6 +526,14 @@ object SubscriptionContentConverter {
         sni?.takeIf { it.isNotEmpty() }?.let { query.append("&sni=").append(URLEncoder.encode(it, "UTF-8")) }
         alpn?.takeIf { it.isNotEmpty() }?.let { query.append("&alpn=").append(URLEncoder.encode(it, "UTF-8")) }
         if (tls?.optBoolean("allowInsecure", false) == true) query.append("&insecure=1")
+        val obfsObj = hy?.optJSONObject("obfs") ?: settings?.optJSONObject("obfs")
+        obfsObj?.optString("type")?.takeIf { it == "salamander" }?.let { query.append("&obfs=salamander") }
+        obfsObj?.optString("password")?.takeIf { it.isNotEmpty() }
+            ?.let { query.append("&obfs-password=").append(URLEncoder.encode(it, "UTF-8")) }
+        hy?.optString("pinSHA256")?.takeIf { it.isNotEmpty() }
+            ?.let { query.append("&pinSHA256=").append(URLEncoder.encode(it, "UTF-8")) }
+        fmObj?.takeIf { it.isNotEmpty() && it != "null" }
+            ?.let { query.append("&fm=").append(URLEncoder.encode(it, "UTF-8")) }
         val queryString = if (query.isNotEmpty()) "?" + query.substring(1) else ""
 
         val encRem = URLEncoder.encode(ob.optString("remarks", rem), "UTF-8").replace("+", "%20")
@@ -599,7 +662,9 @@ object SubscriptionContentConverter {
         if (method.isEmpty() || address.isEmpty() || port <= 0) return null
         val ui = android.util.Base64.encodeToString("$method:$password".toByteArray(), android.util.Base64.NO_WRAP)
         val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
-        "ss://$ui@$address:$port#$encRem"
+        val plugin = root.optString("plugin")
+        val pluginQ = if (plugin.isEmpty()) "" else "/?plugin=" + URLEncoder.encode(plugin, "UTF-8")
+        "ss://$ui@$address:$port$pluginQ#$encRem"
     } catch (_: Exception) {
         null
     }
@@ -611,13 +676,20 @@ object SubscriptionContentConverter {
         if (address.isEmpty() || port <= 0) return null
 
         val obfs = root.optJSONObject("obfs")
-        val sni = root.optJSONObject("tls")?.optString("server_name")
+        val sbTls2 = root.optJSONObject("tls")
+        val sni = sbTls2?.optString("server_name")
+        val sbAlpnArr2 = sbTls2?.optJSONArray("alpn")
+        val sbAlpn2 = sbAlpnArr2?.let { a -> (0 until a.length()).mapNotNull { a.optString(it) }
+            .filter { it.isNotEmpty() }.joinToString(",") } ?: ""
 
         val query = StringBuilder()
         obfs?.optString("type")?.takeIf { it.isNotEmpty() }?.let { query.append("&obfs=").append(URLEncoder.encode(it, "UTF-8")) }
         obfs?.optString("password")?.takeIf { it.isNotEmpty() }?.let { query.append("&obfs-password=").append(URLEncoder.encode(it, "UTF-8")) }
         sni?.takeIf { it.isNotEmpty() }?.let { query.append("&sni=").append(URLEncoder.encode(it, "UTF-8")) }
-        if (root.optJSONObject("tls")?.optBoolean("insecure", false) == true) query.append("&insecure=1")
+        if (sbAlpn2.isNotEmpty()) query.append("&alpn=").append(URLEncoder.encode(sbAlpn2, "UTF-8"))
+        if (sbTls2?.optBoolean("insecure", false) == true) query.append("&insecure=1")
+        root.optString("pinSHA256").takeIf { it.isNotEmpty() }
+            ?.let { query.append("&pinSHA256=").append(URLEncoder.encode(it, "UTF-8")) }
 
         val queryString = if (query.isNotEmpty()) "?" + query.substring(1) else ""
         val encRem = URLEncoder.encode(rem, "UTF-8").replace("+", "%20")
