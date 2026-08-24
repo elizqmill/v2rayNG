@@ -261,9 +261,14 @@ object SubscriptionContentConverter {
             // Skip non-proxy outbounds (routing plumbing).
             if (p !in PROXY_PROTOCOLS && !isShadowsocks(ob)) continue
 
-            val label = if (rem.isNotBlank() && tag.isNotBlank() &&
-                !tag.startsWith("proxy-")) "$rem | $tag"
-                else if (tag.isNotBlank()) tag else rem
+            val label = when {
+                rem.isNotBlank() && tag.isNotBlank() ->
+                    if (tag.startsWith("proxy")) "$rem (${tag.removePrefix("proxy").trimStart('-')})"
+                    else "$rem | $tag"
+                rem.isNotBlank() -> rem
+                tag.isNotBlank() -> tag
+                else -> ""
+            }
 
             val built = when (p) {
                 "vless" -> buildVless(ob, label)
