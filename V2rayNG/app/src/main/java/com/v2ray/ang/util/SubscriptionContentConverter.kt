@@ -78,17 +78,22 @@ object SubscriptionContentConverter {
             val out = StringBuilder()
             for (i in 0 until arr.length()) {
                 val obj = arr.optJSONObject(i)
-                // Unconvertible entries stay as compact JSON so they still import
-                // as custom profiles - dropping them loses servers silently.
-                val piece = when {
-                    obj == null -> arr.opt(i)?.toString()?.takeIf { it != "null" }
-                    else -> processJson(obj) ?: obj.toString()
+                if (obj == null) {
+                    arr.opt(i)?.toString()?.takeIf { it != "null" && it.isNotEmpty() }
+                        ?.let { out.append(it).append("\n") }
+                    continue
                 }
-                if (!piece.isNullOrEmpty()) out.append(piece).append("\n")
+                // Full configs carry many proxy outbounds; emit one link each.
+                val links = processJsonAll(obj)
+                if (links.isNotEmpty()) {
+                    links.forEach { out.append(it).append("\n") }
+                } else {
+                    out.append(obj.toString()).append("\n")
+                }
             }
             out.toString().trim().takeIf { it.isNotEmpty() }
         } else {
-            processJson(JSONObject(t))
+            processJsonAll(JSONObject(t)).joinToString("\n").takeIf { it.isNotEmpty() }
         }
     } catch (_: Throwable) {
         null
@@ -147,16 +152,19 @@ object SubscriptionContentConverter {
 
     //region JSON outbound -> share link
 
-    private fun processJson(root: JSONObject): String? {
-        if (isShadowsocks(root)) {
-            return buildShadowsocks(root, root.optString("remarks", ""))
-        }
+    /**
+     * Processes one JSON config and returns a list of share links - one per
+     * convertible proxy outbound. Full xray configs with balancers often have
+     * 10+ proxy-tagged outbounds; emitting all of them preserves every server.
+     */
+    private fun processJsonAll(root: JSONObject): List<String> {
+        val results = mutableListOf<String>()
 
-        // sing-box style direct outbound: { "type": "...", "server": ..., "server_port": ... }
+        // Bare sing-box / direct outbound object
         val sbType = root.optString("type")
         if (sbType.isNotEmpty() && (root.has("server") || root.has("server_port"))) {
             val rem = root.optString("tag", "")
-            return when (sbType) {
+            val built = when (sbType) {
                 "vless" -> buildSbVless(root, rem)
                 "vmess" -> buildSbVmess(root, rem)
                 "trojan" -> buildSbTrojan(root, rem)
@@ -167,32 +175,60 @@ object SubscriptionContentConverter {
                 "http" -> buildUserPassLink("http", root, rem)
                 else -> null
             }
+            if (built != null) results.add(built)
+            return results
         }
 
-        val protocol = root.optString("protocol", root.optString("type"))
-        when (protocol) {
-            "vmess" -> return buildVmess(root, root.optString("tag", root.optString("remarks", "")))
-            "tuic" -> return buildTuic(root, root.optString("tag", root.optString("remarks", "")))
+        // Bare vmess/tuic outbound (no wrapper)
+        val protocol0 = root.optString("protocol", root.optString("type"))
+        if (protocol0 == "vmess") {
+            buildVmess(root, root.optString("tag", root.optString("remarks", "")))?.let { results.add(it) }
+            return results
+        }
+        if (protocol0 == "tuic") {
+            buildTuic(root, root.optString("tag", root.optString("remarks", "")))?.let { results.add(it) }
+            return results
         }
 
-        val obs = root.optJSONArray("outbounds") ?: return null
+        // Full config with outbounds[]: emit one link per proxy-tagged entry.
+        val obs = root.optJSONArray("outbounds")
+        if (obs == null) {
+            if (isShadowsocks(root)) {
+                buildShadowsocks(root, root.optString("remarks", ""))?.let { results.add(it) }
+            }
+            return results
+        }
+
         val rem = root.optString("remarks", "")
         for (i in 0 until obs.length()) {
             val ob = obs.optJSONObject(i) ?: continue
+            val tag = ob.optString("tag", "")
             val p = ob.optString("protocol", ob.optString("type"))
+            // Skip non-proxy outbounds (routing plumbing).
+            if (p !in PROXY_PROTOCOLS && !isShadowsocks(ob)) continue
+
+            val label = if (rem.isNotBlank() && tag.isNotBlank() &&
+                !tag.startsWith("proxy-")) "$rem | $tag"
+                else if (tag.isNotBlank()) tag else rem
+
             val built = when (p) {
-                "vless" -> buildVless(ob, rem)
-                "vmess" -> buildVmess(ob, rem)
-                "shadowsocks" -> buildShadowsocks(ob, rem)
-                "trojan" -> buildTrojan(ob, rem)
-                "hysteria", "hysteria2" -> buildHysteriaX(ob, rem)
-                "tuic" -> buildTuic(ob, rem)
-                else -> if (isShadowsocks(ob)) buildShadowsocks(ob, rem) else null
+                "vless" -> buildVless(ob, label)
+                "vmess" -> buildVmess(ob, label)
+                "shadowsocks" -> buildShadowsocks(ob, label)
+                "trojan" -> buildTrojan(ob, label)
+                "hysteria", "hysteria2" -> buildHysteriaX(ob, label)
+                "tuic" -> buildTuic(ob, label)
+                else -> if (isShadowsocks(ob)) buildShadowsocks(ob, label) else null
             }
-            if (built != null) return built
+            if (built != null) results.add(built)
         }
-        return null
+        return results
     }
+
+    private val PROXY_PROTOCOLS = setOf(
+        "vless", "vmess", "shadowsocks", "trojan",
+        "hysteria", "hysteria2", "tuic", "socks", "http"
+    )
 
     private fun isShadowsocks(obj: JSONObject): Boolean {
         if (obj.has("server") && obj.has("server_port") && obj.has("password") && obj.has("method")) return true
