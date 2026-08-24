@@ -20,7 +20,61 @@ object SubscriptionContentConverter {
 
     fun convert(content: String, decodeBase64: Boolean, customToLinks: Boolean): String {
         if (!decodeBase64 && !customToLinks) return content
+
+        // Shop subscriptions often contain multiple pretty-printed JSON objects
+        // concatenated with newlines (not a JSON array). Split them so each
+        // object gets processed independently.
+        val split = splitConcatenatedJson(content)
+        if (split.size > 1) {
+            val out = StringBuilder()
+            for (chunk in split) {
+                val converted = walk(chunk, decodeBase64, customToLinks)
+                if (converted.isNotBlank()) out.append(converted).append("\n")
+            }
+            return out.toString().trim()
+        }
+
         return walk(content, decodeBase64, customToLinks)
+    }
+
+    /**
+     * Splits text that contains multiple top-level JSON objects separated by
+     * newlines into individual JSON strings. Uses a brace-depth counter so
+     * nested objects inside arrays don't cause premature splits.
+     */
+    private fun splitConcatenatedJson(text: String): List<String> {
+        val trimmed = text.trim()
+        // A single whole JSON value doesn't need splitting.
+        if (isWholeJsonValue(trimmed)) return listOf(trimmed)
+
+        val chunks = mutableListOf<String>()
+        var depth = 0
+        var start = -1
+        var inString = false
+        var escaped = false
+
+        for (i in trimmed.indices) {
+            val c = trimmed[i]
+            if (escaped) { escaped = false; continue }
+            if (c == '\\') { escaped = true; continue }
+            if (c == '"') { inString = !inString; continue }
+            if (inString) continue
+
+            when {
+                c == '{' || c == '[' -> {
+                    if (depth == 0) start = i
+                    depth++
+                }
+                c == '}' || c == ']' -> {
+                    depth--
+                    if (depth == 0 && start >= 0) {
+                        chunks.add(trimmed.substring(start, i + 1))
+                        start = -1
+                    }
+                }
+            }
+        }
+        return chunks.ifEmpty { listOf(trimmed) }
     }
 
     private fun walk(input: String, b64: Boolean, j2l: Boolean): String {
