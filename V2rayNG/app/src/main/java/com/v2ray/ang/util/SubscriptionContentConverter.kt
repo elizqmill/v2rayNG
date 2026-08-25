@@ -1,5 +1,6 @@
 package com.v2ray.ang.util
 
+import com.v2ray.ang.AppConfig
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -20,6 +21,7 @@ object SubscriptionContentConverter {
 
     fun convert(content: String, decodeBase64: Boolean, customToLinks: Boolean, keepBalancers: Boolean = false): String {
         if (!decodeBase64 && !customToLinks) return content
+        LogUtil.d("SubConverter", "convert: decodeBase64=$decodeBase64 customToLinks=$customToLinks keepBalancers=$keepBalancers")
 
         // Shop subscriptions often contain multiple pretty-printed JSON objects
         // concatenated with newlines (not a JSON array). Split them so each
@@ -139,7 +141,11 @@ object SubscriptionContentConverter {
             val trimmed = t.trim()
             if (trimmed.startsWith("{") && isWholeJsonValue(trimmed)) {
                 val probe = JSONObject(trimmed)
-                if (hasBalancer(probe)) return probe.toString()
+                val has = hasBalancer(probe)
+                LogUtil.d("SubConverter", "keepBalancers=true, hasBalancer=$has, remarks=${probe.optString("remarks", "")}")
+                if (has) return probe.toString()
+            } else {
+                LogUtil.d("SubConverter", "keepBalancers=true but not whole JSON (starts=${trimmed.take(20)})")
             }
         }
         if (t.startsWith("[")) {

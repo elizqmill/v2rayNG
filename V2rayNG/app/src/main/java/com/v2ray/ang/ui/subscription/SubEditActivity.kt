@@ -286,17 +286,13 @@ fun SubEditScreen(
                 checked = convertCustomToLinks,
                 onCheckedChange = { convertCustomToLinks = it }
             )
-            if (convertCustomToLinks) {
-                SettingsSwitchItem(
-                    title = stringResource(R.string.sub_keep_balancers_custom),
-                    summary = stringResource(R.string.sub_keep_balancers_custom_tip),
-                    checked = keepBalancersCustom,
-                    enabled = convertCustomToLinks,
-                    onCheckedChange = { keepBalancersCustom = it }
-                )
-            } else {
-                keepBalancersCustom = false
-            }
+            SettingsSwitchItem(
+                title = stringResource(R.string.sub_keep_balancers_custom),
+                summary = stringResource(R.string.sub_keep_balancers_custom_tip),
+                checked = keepBalancersCustom && convertCustomToLinks,
+                enabled = convertCustomToLinks,
+                onCheckedChange = { keepBalancersCustom = it }
+            )
             FormDropdownField(
                 label = stringResource(R.string.sub_setting_pre_profile),
                 placeholder = stringResource(R.string.sub_setting_pre_profile_tip),
