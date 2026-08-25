@@ -280,7 +280,7 @@ object SubscriptionContentConverter {
                     val proto = entry.p.takeIf { it != "vless" } ?: ""
                     val suffix = listOf(proto, net).filter { it.isNotBlank() }
                         .joinToString(" ").ifBlank { "${index + 1}" }
-                    "$rem | ${suffix.replaceFirstChar { it.uppercaseChar }}"
+                    "$rem | ${suffix.replaceFirstChar { c -> c.uppercaseChar() }}"
                 }
                 else -> entry.tag.ifBlank { "profile-${index + 1}" }
             }
