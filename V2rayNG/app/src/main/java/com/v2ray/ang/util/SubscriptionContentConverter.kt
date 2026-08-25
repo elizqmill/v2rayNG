@@ -272,16 +272,8 @@ object SubscriptionContentConverter {
                 // Single proxy in this config -> just the remark, no suffix
                 proxies.size == 1 -> rem
 
-                // Multiple proxies: append a distinguishing suffix from the
-                // transport type or the outbound index
-                rem.isNotBlank() -> {
-                    val net = entry.ob.optJSONObject("streamSettings")
-                        ?.optString("network")?.takeIf { it.isNotEmpty() } ?: ""
-                    val proto = entry.p.takeIf { it != "vless" } ?: ""
-                    val suffix = listOf(proto, net).filter { it.isNotBlank() }
-                        .joinToString(" ").ifBlank { "${index + 1}" }
-                    "$rem | ${suffix.replaceFirstChar { c -> c.uppercaseChar() }}"
-                }
+                // Multiple proxies: number them so they stay distinguishable
+                rem.isNotBlank() -> "$rem (${index + 1})"
                 else -> entry.tag.ifBlank { "profile-${index + 1}" }
             }
 
