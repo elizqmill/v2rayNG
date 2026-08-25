@@ -291,8 +291,11 @@ fun SubEditScreen(
                     title = stringResource(R.string.sub_keep_balancers_custom),
                     summary = stringResource(R.string.sub_keep_balancers_custom_tip),
                     checked = keepBalancersCustom,
+                    enabled = convertCustomToLinks,
                     onCheckedChange = { keepBalancersCustom = it }
                 )
+            } else {
+                keepBalancersCustom = false
             }
             FormDropdownField(
                 label = stringResource(R.string.sub_setting_pre_profile),

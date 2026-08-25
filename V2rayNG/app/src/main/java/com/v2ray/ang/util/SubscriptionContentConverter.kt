@@ -134,11 +134,12 @@ object SubscriptionContentConverter {
 
     private fun convertJsonText(t: String, keepBalancers: Boolean = false): String? = try {
         // Balancer configs must stay custom to preserve routing/dns/outbound sets.
+        // Return compact single-line JSON so v2rayNG imports it as a custom profile.
         if (keepBalancers) {
             val trimmed = t.trim()
             if (trimmed.startsWith("{") && isWholeJsonValue(trimmed)) {
-                val probe = org.json.JSONObject(trimmed)
-                if (hasBalancer(probe)) return null
+                val probe = JSONObject(trimmed)
+                if (hasBalancer(probe)) return probe.toString()
             }
         }
         if (t.startsWith("[")) {
