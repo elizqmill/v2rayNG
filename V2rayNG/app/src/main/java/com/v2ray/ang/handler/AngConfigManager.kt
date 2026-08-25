@@ -535,6 +535,7 @@ object AngConfigManager {
                 content = configText,
                 decodeBase64 = it.subscription.decodeBase64ToText,
                 customToLinks = it.subscription.convertCustomToLinks,
+                keepBalancers = it.subscription.keepBalancersCustom,
             )
 
             val count = parseConfigViaSub(preparedText, it.guid, false)

@@ -149,6 +149,7 @@ fun SubEditScreen(
     var allowInsecureUrl by rememberSaveable { mutableStateOf(initial.allowInsecureUrl) }
     var decodeBase64ToText by rememberSaveable { mutableStateOf(initial.decodeBase64ToText) }
     var convertCustomToLinks by rememberSaveable { mutableStateOf(initial.convertCustomToLinks) }
+    var keepBalancersCustom by rememberSaveable { mutableStateOf(initial.keepBalancersCustom) }
     var prevProfile by rememberSaveable { mutableStateOf(initial.prevProfile ?: "") }
     var nextProfile by rememberSaveable { mutableStateOf(initial.nextProfile ?: "") }
 
@@ -199,6 +200,7 @@ fun SubEditScreen(
         subItem.allowInsecureUrl = allowInsecureUrl
         subItem.decodeBase64ToText = decodeBase64ToText
         subItem.convertCustomToLinks = convertCustomToLinks
+        subItem.keepBalancersCustom = keepBalancersCustom
         return subItem
     }
 
@@ -284,6 +286,14 @@ fun SubEditScreen(
                 checked = convertCustomToLinks,
                 onCheckedChange = { convertCustomToLinks = it }
             )
+            if (convertCustomToLinks) {
+                SettingsSwitchItem(
+                    title = stringResource(R.string.sub_keep_balancers_custom),
+                    summary = stringResource(R.string.sub_keep_balancers_custom_tip),
+                    checked = keepBalancersCustom,
+                    onCheckedChange = { keepBalancersCustom = it }
+                )
+            }
             FormDropdownField(
                 label = stringResource(R.string.sub_setting_pre_profile),
                 placeholder = stringResource(R.string.sub_setting_pre_profile_tip),

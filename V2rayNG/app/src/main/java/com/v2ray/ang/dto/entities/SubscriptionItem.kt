@@ -18,5 +18,7 @@ data class SubscriptionItem(
     var decodeBase64ToText: Boolean = false,
     /** Convert custom JSON configs in the body into regular share links on update. */
     var convertCustomToLinks: Boolean = false,
+    /** When true, configs containing balancers stay as custom profiles even if convertCustomToLinks is on. */
+    var keepBalancersCustom: Boolean = false,
 )
 

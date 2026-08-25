@@ -323,6 +323,8 @@
     <string name="sub_decode_base64_to_text_tip">Decode base64 subscription bodies into plain link lists on update</string>
     <string name="sub_convert_custom_to_links">Custom configs to links</string>
     <string name="sub_convert_custom_to_links_tip">Convert custom JSON profiles into regular links on update</string>
+    <string name="sub_keep_balancers_custom">Keep balancers as custom</string>
+    <string name="sub_keep_balancers_custom_tip">Configs with balancers stay as custom profiles to preserve routing and load balancing</string>
     <string name="acc_decrypt_link">Decode subscription link</string>
     <string name="sub_link_decoded">Link decoded</string>
     <string name="sub_link_already_plain">This is already a plain URL — nothing to decode</string>

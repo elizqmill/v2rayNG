@@ -18,7 +18,7 @@ import java.net.URLEncoder
  */
 object SubscriptionContentConverter {
 
-    fun convert(content: String, decodeBase64: Boolean, customToLinks: Boolean): String {
+    fun convert(content: String, decodeBase64: Boolean, customToLinks: Boolean, keepBalancers: Boolean = false): String {
         if (!decodeBase64 && !customToLinks) return content
 
         // Shop subscriptions often contain multiple pretty-printed JSON objects
@@ -34,7 +34,7 @@ object SubscriptionContentConverter {
             return out.toString().trim()
         }
 
-        return walk(content, decodeBase64, customToLinks)
+        return walk(content, decodeBase64, customToLinks, keepBalancers)
     }
 
     /**
@@ -77,20 +77,20 @@ object SubscriptionContentConverter {
         return chunks.ifEmpty { listOf(trimmed) }
     }
 
-    private fun walk(input: String, b64: Boolean, j2l: Boolean): String {
+    private fun walk(input: String, b64: Boolean, j2l: Boolean, kb: Boolean = false): String {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) return input
 
         // Whole body is one base64 blob -> decode first and recurse.
         if (b64) {
             tryDecodeBase64(trimmed)?.let { decoded ->
-                return walk(decoded, b64, j2l)
+                return walk(decoded, b64, j2l, kb)
             }
         }
 
         // Whole body is a single JSON value (compact or pretty) -> convert directly.
         if (j2l && (trimmed.startsWith("{") || trimmed.startsWith("[")) && isWholeJsonValue(trimmed)) {
-            convertJsonText(trimmed)?.let { return it }
+            convertJsonText(trimmed, kb)?.let { return it }
         }
 
         val res = StringBuilder()
@@ -100,13 +100,13 @@ object SubscriptionContentConverter {
 
             if (b64) {
                 tryDecodeBase64(t)?.let { decoded ->
-                    res.append(walk(decoded, b64, j2l)).append("\n")
+                    res.append(walk(decoded, b64, j2l, kb)).append("\n")
                     return@forEach
                 }
             }
 
             if (j2l && (t.startsWith("{") || t.startsWith("["))) {
-                convertJsonText(t)?.let {
+                convertJsonText(t, kb)?.let {
                     res.append(it).append("\n")
                     return@forEach
                 }
@@ -126,7 +126,21 @@ object SubscriptionContentConverter {
         false
     }
 
-    private fun convertJsonText(t: String): String? = try {
+    /** True when a config contains balancer definitions in routing. */
+    private fun hasBalancer(root: org.json.JSONObject): Boolean {
+        val balancers = root.optJSONObject("routing")?.optJSONArray("balancers")
+        return balancers != null && balancers.length() > 0
+    }
+
+    private fun convertJsonText(t: String, keepBalancers: Boolean = false): String? = try {
+        // Balancer configs must stay custom to preserve routing/dns/outbound sets.
+        if (keepBalancers) {
+            val trimmed = t.trim()
+            if (trimmed.startsWith("{") && isWholeJsonValue(trimmed)) {
+                val probe = org.json.JSONObject(trimmed)
+                if (hasBalancer(probe)) return null
+            }
+        }
         if (t.startsWith("[")) {
             val arr = JSONArray(t)
             val out = StringBuilder()
