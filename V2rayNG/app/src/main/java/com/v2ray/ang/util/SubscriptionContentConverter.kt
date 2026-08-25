@@ -254,30 +254,45 @@ object SubscriptionContentConverter {
         }
 
         val rem = root.optString("remarks", "")
+
+        // First pass: collect convertible proxy outbounds so we know whether
+        // numbering is needed (only when there are multiple).
+        data class ProxyEntry(val ob: org.json.JSONObject, val p: String, val tag: String)
+        val proxies = mutableListOf<ProxyEntry>()
         for (i in 0 until obs.length()) {
             val ob = obs.optJSONObject(i) ?: continue
-            val tag = ob.optString("tag", "")
             val p = ob.optString("protocol", ob.optString("type"))
-            // Skip non-proxy outbounds (routing plumbing).
-            if (p !in PROXY_PROTOCOLS && !isShadowsocks(ob)) continue
+            if (p in PROXY_PROTOCOLS || isShadowsocks(ob)) {
+                proxies.add(ProxyEntry(ob, p, ob.optString("tag", "")))
+            }
+        }
 
+        for ((index, entry) in proxies.withIndex()) {
             val label = when {
-                rem.isNotBlank() && tag.isNotBlank() ->
-                    if (tag.startsWith("proxy")) "$rem (${tag.removePrefix("proxy").trimStart('-')})"
-                    else "$rem | $tag"
-                rem.isNotBlank() -> rem
-                tag.isNotBlank() -> tag
-                else -> ""
+                // Single proxy in this config -> just the remark, no suffix
+                proxies.size == 1 -> rem
+
+                // Multiple proxies: append a distinguishing suffix from the
+                // transport type or the outbound index
+                rem.isNotBlank() -> {
+                    val net = entry.ob.optJSONObject("streamSettings")
+                        ?.optString("network")?.takeIf { it.isNotEmpty() } ?: ""
+                    val proto = entry.p.takeIf { it != "vless" } ?: ""
+                    val suffix = listOf(proto, net).filter { it.isNotBlank() }
+                        .joinToString(" ").ifBlank { "${index + 1}" }
+                    "$rem | ${suffix.replaceFirstChar { it.uppercaseChar }}"
+                }
+                else -> entry.tag.ifBlank { "profile-${index + 1}" }
             }
 
-            val built = when (p) {
-                "vless" -> buildVless(ob, label)
-                "vmess" -> buildVmess(ob, label)
-                "shadowsocks" -> buildShadowsocks(ob, label)
-                "trojan" -> buildTrojan(ob, label)
-                "hysteria", "hysteria2" -> buildHysteriaX(ob, label)
-                "tuic" -> buildTuic(ob, label)
-                else -> if (isShadowsocks(ob)) buildShadowsocks(ob, label) else null
+            val built = when (entry.p) {
+                "vless" -> buildVless(entry.ob, label)
+                "vmess" -> buildVmess(entry.ob, label)
+                "shadowsocks" -> buildShadowsocks(entry.ob, label)
+                "trojan" -> buildTrojan(entry.ob, label)
+                "hysteria", "hysteria2" -> buildHysteriaX(entry.ob, label)
+                "tuic" -> buildTuic(entry.ob, label)
+                else -> if (isShadowsocks(entry.ob)) buildShadowsocks(entry.ob, label) else null
             }
             if (built != null) results.add(built)
         }
