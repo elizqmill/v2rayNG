@@ -284,8 +284,8 @@ object SubscriptionContentConverter {
         }
 
         // More than one proxy server = balancer/multi-server config.
-        // Keep as custom profile - links cannot preserve balancer behaviour.
-        if (proxies.size > 1) return emptyList()
+        // Return compact JSON so it imports as ONE custom profile.
+        if (proxies.size > 1) return listOf(root.toString())
 
         // Exactly one proxy outbound -> convert to a link.
         if (proxies.size == 1) {
