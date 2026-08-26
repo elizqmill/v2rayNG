@@ -92,6 +92,28 @@ object SubscriptionContentConverter {
 
         // Whole body is a single JSON value (compact or pretty) -> convert directly.
         if (j2l && (trimmed.startsWith("{") || trimmed.startsWith("[")) && isWholeJsonValue(trimmed)) {
+
+            // Configs with >1 proxy outbound stay as compact JSON custom profiles.
+            if (trimmed.startsWith("{")) {
+                try {
+                    val probe = JSONObject(trimmed)
+                    val obs = probe.optJSONArray("outbounds")
+                    if (obs != null) {
+                        var proxyCount = 0
+                        for (i in 0 until obs.length()) {
+                            val o = obs.optJSONObject(i) ?: continue
+                            val p = o.optString("protocol", o.optString("type"))
+                            if (p in PROXY_PROTOCOLS || isShadowsocks(o)) proxyCount++
+                        }
+                        if (proxyCount > 1) {
+                            // Multi-server config: return compact JSON as-is,
+                            // bypassing all conversion - imports as custom profile.
+                            return JSONObject(trimmed).toString()
+                        }
+                    }
+                } catch (_: Throwable) { }
+            }
+
             convertJsonText(trimmed, kb)?.let { return it }
         }
 
