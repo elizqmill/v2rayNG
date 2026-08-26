@@ -21,7 +21,7 @@ object SubscriptionContentConverter {
 
     fun convert(content: String, decodeBase64: Boolean, customToLinks: Boolean, keepBalancers: Boolean = false): String {
         if (!decodeBase64 && !customToLinks) return content
-        LogUtil.i("SubConverter", "convert: decodeBase64=$decodeBase64 customToLinks=$customToLinks keepBalancers=$keepBalancers")
+        LogUtil.i("SubConverter", "v2 convert: b64=$decodeBase64 links=$customToLinks balancers=$keepBalancers")
 
         // Shop subscriptions often contain multiple pretty-printed JSON objects
         // concatenated with newlines (not a JSON array). Split them so each
