@@ -228,14 +228,13 @@ object SubscriptionContentConverter {
     //region JSON outbound -> share link
 
     /**
-     * Processes one JSON config and returns a list of share links - one per
-     * convertible proxy outbound. Full xray configs with balancers often have
-     * 10+ proxy-tagged outbounds; emitting all of them preserves every server.
+     * Processes one JSON config object. If it contains MORE than one proxy
+     * outbound it is treated as a balancer/multi-server config and returned
+     * as an empty list so the caller preserves it as a custom profile.
+     * Single-outbound configs are converted to their share link normally.
      */
     private fun processJsonAll(root: JSONObject): List<String> {
-        val results = mutableListOf<String>()
-
-        // Bare sing-box / direct outbound object
+        // Bare sing-box / direct outbound object (single server by definition)
         val sbType = root.optString("type")
         if (sbType.isNotEmpty() && (root.has("server") || root.has("server_port"))) {
             val rem = root.optString("tag", "")
@@ -250,66 +249,60 @@ object SubscriptionContentConverter {
                 "http" -> buildUserPassLink("http", root, rem)
                 else -> null
             }
-            if (built != null) results.add(built)
-            return results
+            return if (built != null) listOf(built) else emptyList()
         }
 
-        // Bare vmess/tuic outbound (no wrapper)
-        val protocol0 = root.optString("protocol", root.optString("type"))
-        if (protocol0 == "vmess") {
-            buildVmess(root, root.optString("tag", root.optString("remarks", "")))?.let { results.add(it) }
-            return results
-        }
-        if (protocol0 == "tuic") {
-            buildTuic(root, root.optString("tag", root.optString("remarks", "")))?.let { results.add(it) }
-            return results
-        }
-
-        // Full config with outbounds[]: emit one link per proxy-tagged entry.
-        val obs = root.optJSONArray("outbounds")
-        if (obs == null) {
-            if (isShadowsocks(root)) {
-                buildShadowsocks(root, root.optString("remarks", ""))?.let { results.add(it) }
+        // Bare vmess/tuic outbound
+        val proto0 = root.optString("protocol", root.optString("type"))
+        if (proto0 == "vmess") {
+            buildVmess(root, root.optString("tag", root.optString("remarks", "")))?.let {
+                return listOf(it)
             }
-            return results
+            return emptyList()
         }
+        if (proto0 == "tuic") {
+            buildTuic(root, root.optString("tag", root.optString("remarks", "")))?.let {
+                return listOf(it)
+            }
+            return emptyList()
+        }
+
+        // Full xray config: count convertible proxy outbounds
+        val obs = root.optJSONArray("outbounds")
+            ?: return if (isShadowsocks(root)) {
+                buildShadowsocks(root, root.optString("remarks", ""))?.let { listOf(it) } ?: emptyList()
+            } else emptyList()
 
         val rem = root.optString("remarks", "")
-
-        // First pass: collect convertible proxy outbounds so we know whether
-        // numbering is needed (only when there are multiple).
-        data class ProxyEntry(val ob: org.json.JSONObject, val p: String, val tag: String)
-        val proxies = mutableListOf<ProxyEntry>()
+        val proxies = mutableListOf<Pair<org.json.JSONObject, String>>() // ob to protocol
         for (i in 0 until obs.length()) {
             val ob = obs.optJSONObject(i) ?: continue
             val p = ob.optString("protocol", ob.optString("type"))
             if (p in PROXY_PROTOCOLS || isShadowsocks(ob)) {
-                proxies.add(ProxyEntry(ob, p, ob.optString("tag", "")))
+                proxies.add(Pair(ob, p))
             }
         }
 
-        for ((index, entry) in proxies.withIndex()) {
-            val label = when {
-                // Single proxy in this config -> just the remark, no suffix
-                proxies.size == 1 -> rem
+        // More than one proxy server = balancer/multi-server config.
+        // Keep as custom profile - links cannot preserve balancer behaviour.
+        if (proxies.size > 1) return emptyList()
 
-                // Multiple proxies: number them so they stay distinguishable
-                rem.isNotBlank() -> "$rem (${index + 1})"
-                else -> entry.tag.ifBlank { "profile-${index + 1}" }
+        // Exactly one proxy outbound -> convert to a link.
+        if (proxies.size == 1) {
+            val (ob, p) = proxies[0]
+            val built = when (p) {
+                "vless" -> buildVless(ob, rem)
+                "vmess" -> buildVmess(ob, rem)
+                "shadowsocks" -> buildShadowsocks(ob, rem)
+                "trojan" -> buildTrojan(ob, rem)
+                "hysteria", "hysteria2" -> buildHysteriaX(ob, rem)
+                "tuic" -> buildTuic(ob, rem)
+                else -> if (isShadowsocks(ob)) buildShadowsocks(ob, rem) else null
             }
-
-            val built = when (entry.p) {
-                "vless" -> buildVless(entry.ob, label)
-                "vmess" -> buildVmess(entry.ob, label)
-                "shadowsocks" -> buildShadowsocks(entry.ob, label)
-                "trojan" -> buildTrojan(entry.ob, label)
-                "hysteria", "hysteria2" -> buildHysteriaX(entry.ob, label)
-                "tuic" -> buildTuic(entry.ob, label)
-                else -> if (isShadowsocks(entry.ob)) buildShadowsocks(entry.ob, label) else null
-            }
-            if (built != null) results.add(built)
+            if (built != null) return listOf(built)
         }
-        return results
+
+        return emptyList()
     }
 
     private val PROXY_PROTOCOLS = setOf(
