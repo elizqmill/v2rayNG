@@ -92,15 +92,6 @@ object SubscriptionContentConverter {
 
         // Whole body is a single JSON value (compact or pretty) -> convert directly.
         if (j2l && (trimmed.startsWith("{") || trimmed.startsWith("[")) && isWholeJsonValue(trimmed)) {
-
-            // Balancer configs stay as compact JSON — always, regardless of toggle.
-            if (trimmed.startsWith("{")) {
-                try {
-                    val probe = JSONObject(trimmed)
-                    if (isBalancerConfig(probe)) return probe.toString()
-                } catch (_: Throwable) { }
-            }
-
             convertJsonText(trimmed, kb)?.let { return it }
         }
 
@@ -117,6 +108,16 @@ object SubscriptionContentConverter {
             }
 
             if (j2l && (t.startsWith("{") || t.startsWith("["))) {
+                // When keepBalancers is on, balancer configs pass through as raw JSON.
+                if (kb && t.startsWith("{")) {
+                    try {
+                        val probe = JSONObject(t)
+                        if (isBalancerConfig(probe)) {
+                            res.append(probe.toString()).append("\n")
+                            return@forEach
+                        }
+                    } catch (_: Throwable) { }
+                }
                 convertJsonText(t, kb)?.let {
                     res.append(it).append("\n")
                     return@forEach
@@ -164,7 +165,7 @@ object SubscriptionContentConverter {
                     continue
                 }
                 // Full configs carry many proxy outbounds; emit one link each.
-                val links = processJsonAll(obj)
+                val links = processJsonAll(obj, keepBalancers)
                 if (links.isNotEmpty()) {
                     links.forEach { out.append(it).append("\n") }
                 } else {
@@ -173,7 +174,7 @@ object SubscriptionContentConverter {
             }
             out.toString().trim().takeIf { it.isNotEmpty() }
         } else {
-            processJsonAll(JSONObject(t)).joinToString("\n").takeIf { it.isNotEmpty() }
+            processJsonAll(JSONObject(t), keepBalancers).joinToString("\n").takeIf { it.isNotEmpty() }
         }
     } catch (_: Throwable) {
         null
@@ -237,9 +238,9 @@ object SubscriptionContentConverter {
      * empty list so the caller preserves them as compact JSON custom profiles.
      * Single-outbound configs are converted to their share link normally.
      */
-    private fun processJsonAll(root: JSONObject): List<String> {
-        // Balancer configs always stay as custom — links can't represent them.
-        if (isBalancerConfig(root)) return emptyList()
+    private fun processJsonAll(root: JSONObject, keepBalancers: Boolean = false): List<String> {
+        // Balancer configs stay as custom only when keepBalancers is explicitly on.
+        if (keepBalancers && isBalancerConfig(root)) return emptyList()
         // Bare sing-box / direct outbound object (single server by definition)
         val sbType = root.optString("type")
         if (sbType.isNotEmpty() && (root.has("server") || root.has("server_port"))) {
