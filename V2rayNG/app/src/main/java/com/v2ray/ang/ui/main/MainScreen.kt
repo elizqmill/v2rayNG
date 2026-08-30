@@ -128,7 +128,7 @@ fun MainScreen(
         } finally {
             delay(32)
             locateInProgress = false
-            mainViewModel.onAction(MainAction.LocateHandled(target))
+            mainViewModel.onAction(MainAction.LocateHandled)
         }
     }
 
