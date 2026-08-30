@@ -264,6 +264,24 @@ object AngConfigManager {
                     val config = parseConfig(it, subid, subItem)
                     if (config != null) {
                         configs.add(config)
+                        return@forEach
+                    }
+
+                    // Lines starting with '{' may be compact custom JSON configs
+                    // (e.g. balancer/multi-server configs kept by SubscriptionContentConverter).
+                    // Try them as custom configs so they aren't silently dropped.
+                    val trimmed = it.trim()
+                    if (trimmed.startsWith("{")) {
+                        try {
+                            val custom = CustomFmt.parse(trimmed)
+                            custom.subscriptionId = subid
+                            custom.description = generateDescription(custom)
+                            configs.add(
+                                ParsedProfile(profile = custom, rawConfig = trimmed)
+                            )
+                        } catch (_: Exception) {
+                            // Not a valid custom config — skip
+                        }
                     }
                 }
 

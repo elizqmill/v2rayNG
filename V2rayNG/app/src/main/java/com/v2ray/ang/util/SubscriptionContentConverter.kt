@@ -163,11 +163,7 @@ object SubscriptionContentConverter {
             val trimmed = t.trim()
             if (trimmed.startsWith("{") && isWholeJsonValue(trimmed)) {
                 val probe = JSONObject(trimmed)
-                val has = hasBalancer(probe)
-                LogUtil.i("SubConverter", "keepBalancers=true, hasBalancer=$has, remarks=${probe.optString("remarks", "")}")
-                if (has) return probe.toString()
-            } else {
-                LogUtil.i("SubConverter", "keepBalancers=true but not whole JSON (starts=${trimmed.take(20)})")
+                if (hasBalancer(probe)) return probe.toString()
             }
         }
         if (t.startsWith("[")) {
