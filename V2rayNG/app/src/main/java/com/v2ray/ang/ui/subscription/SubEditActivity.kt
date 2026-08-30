@@ -246,7 +246,7 @@ fun SubEditScreen(
                     modifier = Modifier.weight(1f)
                 )
                 Box(
-                    modifier = Modifier.width(40.dp).fillMaxHeight(),
+                    modifier = Modifier.width(48.dp).fillMaxHeight(),
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(onClick = { decodeLink() }) {
