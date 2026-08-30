@@ -256,14 +256,14 @@ object AngConfigManager {
             val subItem = MmkvManager.decodeSubscription(subid)
 
             // Parse all configs first (no I/O during parsing)
-            val configs = mutableListOf<ProfileItem>()
+            val configs = mutableListOf<ParsedProfile>()
             servers.lines()
                 .distinct()
                 .reversed()
                 .forEach {
                     val config = parseConfig(it, subid, subItem)
                     if (config != null) {
-                        configs.add(config)
+                        configs.add(ParsedProfile(profile = config))
                         return@forEach
                     }
 
@@ -287,7 +287,7 @@ object AngConfigManager {
 
             if (configs.isNotEmpty()) {
                 commitProfiles(
-                    configs = configs.map(::ParsedProfile),
+                    configs = configs,
                     subid = subid,
                     append = append,
                 )
