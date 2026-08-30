@@ -240,7 +240,7 @@ fun SubEditScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FormTextField(
                     stringResource(R.string.sub_setting_url), url, { url = it },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).padding(end = 4.dp)
                 )
                 IconButton(onClick = { decodeLink() }) {
                     Icon(
