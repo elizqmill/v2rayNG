@@ -105,6 +105,7 @@ private val DarkColor = darkColorScheme(
 val colorPing = Color(0xFF009966) // Green
 val colorPingRed = Color(0xFFFF0099) // Pink Red
 val colorConfigType = Color(0xFFf97910) // Orange
+val colorSpeedMedium = Color(0xFFD4A017) // Golden Yellow — medium speed, distinct from orange protocol label
 val colorFabActive = Color(0xFFf97910) // Orange
 val colorFabInactiveLight = Color(0xFF9C9C9C) // Gray
 val colorFabInactiveDark = Color(0xFF646464) // Dark Gray

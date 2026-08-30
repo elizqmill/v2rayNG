@@ -369,7 +369,7 @@ fun ServerListItem(
         Column(
             Modifier
                 .weight(1f)
-                .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
+                .padding(start = 8.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(remarks, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge.copy(lineBreak = LineBreak.Paragraph), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -420,30 +420,24 @@ fun ServerListItem(
                 Text(statistics, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(modifier = Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(typeDescription, style = MaterialTheme.typography.bodySmall, color = colorConfigType, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (testSpeedPresent) {
-                        // A probed profile always carries a number — even 0 KB/s
-                        // beats silence; only "never tested" hides the label.
-                        val speedText = formatTestSpeed(maxOf(0L, testSpeedBytesPerSec))
-                        // Color by absolute throughput, not by the stability flag:
-                        // a profile that nearly finished in time still carried
-                        // plenty of speed and must not read as "dead".
-                        val speedColor = when {
-                            testSpeedBytesPerSec >= 1_000_000L -> colorPing          // ≥ ~1 MB/s: healthy
-                            testSpeedBytesPerSec >= 200_000L -> colorConfigType      // 200 KB/s…1 MB/s: usable
-                            else -> colorPingRed                                     // shaped / dead line
-                        }
-                        Text(
-                            speedText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = speedColor,
-                            maxLines = 1
-                        )
+            Text(typeDescription, style = MaterialTheme.typography.bodySmall, color = colorConfigType, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (testSpeedPresent) {
+                    val speedText = formatTestSpeed(maxOf(0L, testSpeedBytesPerSec))
+                    val speedColor = when {
+                        testSpeedBytesPerSec >= 1_000_000L -> colorPing
+                        testSpeedBytesPerSec >= 200_000L -> colorSpeedMedium
+                        else -> colorPingRed
                     }
-                    Text(testResult, style = MaterialTheme.typography.bodySmall, color = if (testDelayMillis < 0L) colorPingRed else colorPing, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        speedText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = speedColor,
+                        maxLines = 1
+                    )
                 }
+                Text(testResult, style = MaterialTheme.typography.bodySmall, color = if (testDelayMillis < 0L) colorPingRed else colorPing, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
