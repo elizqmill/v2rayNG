@@ -93,24 +93,11 @@ object SubscriptionContentConverter {
         // Whole body is a single JSON value (compact or pretty) -> convert directly.
         if (j2l && (trimmed.startsWith("{") || trimmed.startsWith("[")) && isWholeJsonValue(trimmed)) {
 
-            // Configs with >1 proxy outbound stay as compact JSON custom profiles.
+            // Balancer configs stay as compact JSON — always, regardless of toggle.
             if (trimmed.startsWith("{")) {
                 try {
                     val probe = JSONObject(trimmed)
-                    val obs = probe.optJSONArray("outbounds")
-                    if (obs != null) {
-                        var proxyCount = 0
-                        for (i in 0 until obs.length()) {
-                            val o = obs.optJSONObject(i) ?: continue
-                            val p = o.optString("protocol", o.optString("type"))
-                            if (p in PROXY_PROTOCOLS || isShadowsocks(o)) proxyCount++
-                        }
-                        if (proxyCount > 1) {
-                            // Multi-server config: return compact JSON as-is,
-                            // bypassing all conversion - imports as custom profile.
-                            return JSONObject(trimmed).toString()
-                        }
-                    }
+                    if (isBalancerConfig(probe)) return probe.toString()
                 } catch (_: Throwable) { }
             }
 
@@ -150,22 +137,22 @@ object SubscriptionContentConverter {
         false
     }
 
-    /** True when a config contains balancer definitions in routing. */
-    private fun hasBalancer(root: org.json.JSONObject): Boolean {
-        val balancers = root.optJSONObject("routing")?.optJSONArray("balancers")
-        return balancers != null && balancers.length() > 0
+    /** True when a config is a balancer/multi-server that must stay as custom JSON. */
+    private fun isBalancerConfig(root: org.json.JSONObject): Boolean {
+        // Has routing.balancers array
+        if (root.optJSONObject("routing")?.optJSONArray("balancers")?.length() ?: 0 > 0) return true
+        // Multiple proxy outbounds
+        val obs = root.optJSONArray("outbounds") ?: return false
+        var proxyCount = 0
+        for (i in 0 until obs.length()) {
+            val o = obs.optJSONObject(i) ?: continue
+            val p = o.optString("protocol", o.optString("type"))
+            if (p in PROXY_PROTOCOLS || isShadowsocks(o)) proxyCount++
+        }
+        return proxyCount > 1
     }
 
     private fun convertJsonText(t: String, keepBalancers: Boolean = false): String? = try {
-        // Balancer configs must stay custom to preserve routing/dns/outbound sets.
-        // Return compact single-line JSON so v2rayNG imports it as a custom profile.
-        if (keepBalancers) {
-            val trimmed = t.trim()
-            if (trimmed.startsWith("{") && isWholeJsonValue(trimmed)) {
-                val probe = JSONObject(trimmed)
-                if (hasBalancer(probe)) return probe.toString()
-            }
-        }
         if (t.startsWith("[")) {
             val arr = JSONArray(t)
             val out = StringBuilder()
@@ -246,12 +233,13 @@ object SubscriptionContentConverter {
     //region JSON outbound -> share link
 
     /**
-     * Processes one JSON config object. If it contains MORE than one proxy
-     * outbound it is treated as a balancer/multi-server config and returned
-     * as an empty list so the caller preserves it as a custom profile.
+     * Processes one JSON config object. Balancer/multi-server configs return
+     * empty list so the caller preserves them as compact JSON custom profiles.
      * Single-outbound configs are converted to their share link normally.
      */
     private fun processJsonAll(root: JSONObject): List<String> {
+        // Balancer configs always stay as custom — links can't represent them.
+        if (isBalancerConfig(root)) return emptyList()
         // Bare sing-box / direct outbound object (single server by definition)
         val sbType = root.optString("type")
         if (sbType.isNotEmpty() && (root.has("server") || root.has("server_port"))) {
@@ -300,10 +288,6 @@ object SubscriptionContentConverter {
                 proxies.add(Pair(ob, p))
             }
         }
-
-        // More than one proxy server = balancer/multi-server config.
-        // Return compact JSON so it imports as ONE custom profile.
-        if (proxies.size > 1) return listOf(root.toString())
 
         // Exactly one proxy outbound -> convert to a link.
         if (proxies.size == 1) {
