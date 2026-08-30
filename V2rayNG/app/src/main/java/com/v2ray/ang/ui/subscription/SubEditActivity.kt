@@ -239,7 +239,7 @@ fun SubEditScreen(
             FormTextField(stringResource(R.string.sub_setting_remarks), remarks, { remarks = it })
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier.padding(end = 8.dp)
             ) {
                 FormTextField(
                     stringResource(R.string.sub_setting_url), url, { url = it },
