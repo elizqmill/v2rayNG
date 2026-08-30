@@ -115,7 +115,7 @@ fun MainScreen(
         try {
             val targetGroupIndex = latestGroups.indexOfFirst { it.id == target.groupId }
             if (targetGroupIndex !in 0 until pagerState.pageCount) {
-                mainViewModel.onAction(MainAction.LocateHandled(target))
+                mainViewModel.onAction(MainAction.LocateHandled)
                 return@LaunchedEffect
             }
             if (pagerState.settledPage != targetGroupIndex) {
