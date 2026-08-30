@@ -305,6 +305,24 @@ object SubscriptionContentConverter {
             if (built != null) return listOf(built)
         }
 
+        // Multiple proxy outbounds (balancer / multi-server) -> emit one link per proxy.
+        if (proxies.size > 1) {
+            val links = mutableListOf<String>()
+            for ((ob, p) in proxies) {
+                val built = when (p) {
+                    "vless" -> buildVless(ob, rem)
+                    "vmess" -> buildVmess(ob, rem)
+                    "shadowsocks" -> buildShadowsocks(ob, rem)
+                    "trojan" -> buildTrojan(ob, rem)
+                    "hysteria", "hysteria2" -> buildHysteriaX(ob, rem)
+                    "tuic" -> buildTuic(ob, rem)
+                    else -> if (isShadowsocks(ob)) buildShadowsocks(ob, rem) else null
+                }
+                if (built != null) links.add(built)
+            }
+            if (links.isNotEmpty()) return links
+        }
+
         return emptyList()
     }
 
