@@ -208,7 +208,7 @@ class MainViewModel(
             is MainAction.RemoveServer -> removeServerAndRefresh(action.guid)
             is MainAction.Search -> filterConfig(action.query)
             is MainAction.ImportBatchConfig -> importBatchConfig(action.configText)
-            is MainAction.LocateHandled -> consumeLocateTarget(action.target)
+            is MainAction.LocateHandled -> consumeLocateTarget()
             is MainAction.ShareQRCode -> {
                 val bitmap = dataSource.share2QRCode(action.guid)
                 _uiState.update { it.copy(shareQRCodeBitmap = bitmap) }
@@ -853,23 +853,16 @@ class MainViewModel(
         val selected = dataSource.getSelectServer() ?: return
         val profile = dataSource.decodeServerConfig(selected) ?: return
         val groupId = profile.subscriptionId
-        val groupIndex =
-            _uiState.value.groups.indexOfFirst { it.id == groupId }.takeIf { it >= 0 } ?: return
-        viewModelScope.launch(ioDispatcher) {
-            val position =
-                loadGroup(groupId).indexOfFirst { it.guid == selected }.takeIf { it >= 0 }
-                    ?: return@launch
-            _uiState.update {
-                it.copy(locateTarget = LocateTarget(groupId, groupIndex, position))
-            }
+        _uiState.update {
+            it.copy(locateTarget = LocateTarget(groupId, selected))
         }
     }
 
     fun getPosition(guid: String): Int = currentServers().indexOfFirst { it.guid == guid }
 
-    private fun consumeLocateTarget(target: LocateTarget) {
+    private fun consumeLocateTarget() {
         _uiState.update { state ->
-            if (state.locateTarget == target) state.copy(locateTarget = null) else state
+            if (state.locateTarget != null) state.copy(locateTarget = null) else state
         }
     }
 

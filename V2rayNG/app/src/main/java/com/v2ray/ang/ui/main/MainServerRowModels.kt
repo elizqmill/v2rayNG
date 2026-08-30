@@ -13,6 +13,9 @@ internal data class ServerRowUiModel(
     val statistics: String,
     val typeDescription: String,
     val testDelayMillis: Long,
+    val testSpeedBytesPerSec: Long = 0L,
+    val testSpeedStable: Boolean = false,
+    val testSpeedPresent: Boolean = false,
     val subscriptionBadge: String,
 )
 
@@ -34,6 +37,9 @@ internal fun buildServerRowUiModel(
             ?: AngConfigManager.generateDescription(profile),
         typeDescription = serverProtocolDescription(profile),
         testDelayMillis = server.testDelayMillis,
+        testSpeedBytesPerSec = server.testSpeedBytesPerSec,
+        testSpeedStable = server.testSpeedStable,
+        testSpeedPresent = server.testSpeedPresent,
         subscriptionBadge = subscriptionRemarks.firstOrNull()?.toString().orEmpty(),
     )
 }

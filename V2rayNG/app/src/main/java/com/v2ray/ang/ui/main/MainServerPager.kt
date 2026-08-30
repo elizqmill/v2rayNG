@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.ang.R
+import com.v2ray.ang.dto.LocateTarget
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.ui.compose.ItemDivider
 import com.v2ray.ang.ui.compose.ReorderableGridItem
@@ -65,6 +67,7 @@ fun GroupPagerPage(
     groupId: String,
     mainViewModel: MainViewModel,
     selectedGuid: String?,
+    locateTarget: LocateTarget?,
     doubleColumnDisplay: Boolean,
     searchQuery: String,
     lazyListStates: MutableMap<String, LazyListState>,
@@ -99,6 +102,7 @@ fun GroupPagerPage(
     ServerListPage(
         rows = groupState.rows,
         selectedGuid = selectedGuid,
+        locateTarget = locateTarget?.takeIf { it.groupId == groupId },
         canReorder = canReorder,
         doubleColumnDisplay = doubleColumnDisplay,
         groupId = groupId,
@@ -125,6 +129,7 @@ private class ServerRowActions(
 private fun ServerListPage(
     rows: List<ServerRowUiModel>,
     selectedGuid: String?,
+    locateTarget: LocateTarget?,
     canReorder: Boolean,
     doubleColumnDisplay: Boolean,
     groupId: String,

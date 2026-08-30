@@ -108,46 +108,23 @@ fun MainScreen(
 
     LaunchedEffect(uiState.locateTarget) {
         val target = uiState.locateTarget ?: return@LaunchedEffect
-        if (target.groupIndex !in 0 until pagerState.pageCount) {
-            mainViewModel.onAction(MainAction.LocateHandled(target))
-            return@LaunchedEffect
-        }
-
+        // The actual scrolling is handled by LocateTargetEffect inside ServerListPage.
+        // We just need to make sure the correct group page is shown and mark as handled
+        // after a delay to give LocateTargetEffect time to scroll.
         locateInProgress = true
         try {
-            if (pagerState.settledPage != target.groupIndex) {
+            val targetGroupIndex = latestGroups.indexOfFirst { it.id == target.groupId }
+            if (targetGroupIndex !in 0 until pagerState.pageCount) {
+                mainViewModel.onAction(MainAction.LocateHandled(target))
+                return@LaunchedEffect
+            }
+            if (pagerState.settledPage != targetGroupIndex) {
                 pagerState.navigateToPageOptimized(
-                    targetPage = target.groupIndex,
+                    targetPage = targetGroupIndex,
                     animateAdjacentPage = false
                 )
             }
             onAction(MainAction.SelectGroup(target.groupId))
-
-            repeat(10) {
-                val ready = if (latestDoubleColumnDisplay) {
-                    lazyGridStates[target.groupId] != null
-                } else {
-                    lazyListStates[target.groupId] != null
-                }
-                if (ready) return@repeat
-                delay(16)
-            }
-
-            if (latestDoubleColumnDisplay) {
-                lazyGridStates[target.groupId]?.let { gridState ->
-                    gridState.scrollToItem(
-                        index = target.itemPosition,
-                        scrollOffset = -gridState.layoutInfo.viewportSize.height / 3
-                    )
-                }
-            } else {
-                lazyListStates[target.groupId]?.let { listState ->
-                    listState.scrollToItem(
-                        index = target.itemPosition,
-                        scrollOffset = -listState.layoutInfo.viewportSize.height / 3
-                    )
-                }
-            }
         } finally {
             delay(32)
             locateInProgress = false
@@ -281,6 +258,7 @@ fun MainScreen(
                             groupId = group.id,
                             mainViewModel = mainViewModel,
                             selectedGuid = selectedGuid,
+                            locateTarget = uiState.locateTarget,
                             doubleColumnDisplay = doubleColumnDisplay,
                             searchQuery = searchQuery,
                             lazyListStates = lazyListStates,
