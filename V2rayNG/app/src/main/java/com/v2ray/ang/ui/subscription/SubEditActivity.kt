@@ -2,6 +2,7 @@ package com.v2ray.ang.ui.subscription
 
 import android.os.Bundle
 import android.text.TextUtils
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -237,19 +239,21 @@ fun SubEditScreen(
                 .padding(bottom = 36.dp)
         ) {
             FormTextField(stringResource(R.string.sub_setting_remarks), remarks, { remarks = it })
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(end = 8.dp)
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 FormTextField(
                     stringResource(R.string.sub_setting_url), url, { url = it },
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = { decodeLink() }) {
-                    Icon(
-                        painterResource(R.drawable.ic_decrypt_24dp),
-                        contentDescription = stringResource(R.string.acc_decrypt_link)
-                    )
+                Box(
+                    modifier = Modifier.width(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    IconButton(onClick = { decodeLink() }) {
+                        Icon(
+                            painterResource(R.drawable.ic_decrypt_24dp),
+                            contentDescription = stringResource(R.string.acc_decrypt_link)
+                        )
+                    }
                 }
             }
             FormTextField(stringResource(R.string.sub_setting_user_agent), userAgent, { userAgent = it })
