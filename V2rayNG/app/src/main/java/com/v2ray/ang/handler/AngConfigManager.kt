@@ -49,7 +49,6 @@ object AngConfigManager {
             EConfigType.WIREGUARD.protocolScheme to WireguardFmt::parse,
             EConfigType.HYSTERIA2.protocolScheme to Hysteria2Fmt::parse,
             AppConfig.HY2 to Hysteria2Fmt::parse,
-            AppConfig.V2RAYNFMTS to V2rayNFmt::parse
         )
     }
 
@@ -257,43 +256,52 @@ object AngConfigManager {
 
             // Parse all configs first (no I/O during parsing)
             val configs = mutableListOf<ParsedProfile>()
+            val v2raynLines = mutableListOf<String>()
+
             servers.lines()
                 .distinct()
                 .reversed()
                 .forEach {
-                    val config = parseConfig(it, subid, subItem)
-                    if (config != null) {
-                        configs.add(ParsedProfile(profile = config))
-                        return@forEach
-                    }
+                    if (it.startsWith(AppConfig.V2RAYNFMTS, ignoreCase = true)) {
+                        v2raynLines.add(it)
+                    } else {
+                        val config = parseConfig(it, subid, subItem)
+                        if (config != null) {
+                            configs.add(ParsedProfile(profile = config))
+                            return@forEach
+                        }
 
-                    // Lines starting with '{' may be compact custom JSON configs
-                    // (e.g. balancer/multi-server configs kept by SubscriptionContentConverter).
-                    // Try them as custom configs so they aren't silently dropped.
-                    val trimmed = it.trim()
-                    if (trimmed.startsWith("{")) {
-                        try {
-                            val custom = CustomFmt.parse(trimmed)
-                            custom.subscriptionId = subid
-                            custom.description = generateDescription(custom)
-                            configs.add(
-                                ParsedProfile(profile = custom, rawConfig = trimmed)
-                            )
-                        } catch (_: Exception) {
-                            // Not a valid custom config — skip
+                        // Lines starting with '{' may be compact custom JSON configs
+                        // (e.g. balancer/multi-server configs kept by SubscriptionContentConverter).
+                        // Try them as custom configs so they aren't silently dropped.
+                        val trimmed = it.trim()
+                        if (trimmed.startsWith("{")) {
+                            try {
+                                val custom = CustomFmt.parse(trimmed)
+                                custom.subscriptionId = subid
+                                custom.description = generateDescription(custom)
+                                configs.add(
+                                    ParsedProfile(profile = custom, rawConfig = trimmed)
+                                )
+                            } catch (_: Exception) {
+                                // Not a valid custom config — skip
+                            }
                         }
                     }
                 }
 
-            if (configs.isNotEmpty()) {
+            val v2raynConfigs = V2rayNFmt.parse(v2raynLines, subid).map(::ParsedProfile)
+            val allConfigs = v2raynConfigs + configs
+
+            if (allConfigs.isNotEmpty()) {
                 commitProfiles(
-                    configs = configs,
+                    configs = allConfigs,
                     subid = subid,
                     append = append,
                 )
             }
 
-            return configs.size
+            return allConfigs.size
         } catch (e: ProfileStorageException) {
             throw e
         } catch (e: Exception) {
@@ -445,12 +453,6 @@ object AngConfigManager {
 
             config.subscriptionId = subid
             config.description = generateDescription(config)
-
-            if (str.startsWith(AppConfig.V2RAYNFMTS, ignoreCase = true)
-                && config.policyGroupSubscriptionId == "self"
-            ) {
-                config.policyGroupSubscriptionId = subid
-            }
 
             return config
         } catch (e: Exception) {

@@ -282,7 +282,6 @@ fun MainScreen(
                             mainViewModel = mainViewModel,
                             selectedGuid = selectedGuid,
                             doubleColumnDisplay = doubleColumnDisplay,
-                            confirmRemove = confirmRemove,
                             searchQuery = searchQuery,
                             lazyListStates = lazyListStates,
                             lazyGridStates = lazyGridStates,
