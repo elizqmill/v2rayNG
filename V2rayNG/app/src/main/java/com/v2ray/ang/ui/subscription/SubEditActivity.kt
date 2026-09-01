@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -240,13 +240,13 @@ fun SubEditScreen(
                 .padding(bottom = 36.dp)
         ) {
             FormTextField(stringResource(R.string.sub_setting_remarks), remarks, { remarks = it })
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
                 FormTextField(
                     stringResource(R.string.sub_setting_url), url, { url = it },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth().padding(end = 64.dp)
                 )
                 Box(
-                    modifier = Modifier.width(48.dp).offset(x = (-8).dp),
+                    modifier = Modifier.width(80.dp).align(Alignment.CenterEnd),
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(onClick = { decodeLink() }) {
