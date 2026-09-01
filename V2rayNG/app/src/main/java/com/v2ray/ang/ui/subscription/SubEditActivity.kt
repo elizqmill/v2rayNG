@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -246,7 +246,7 @@ fun SubEditScreen(
                     modifier = Modifier.weight(1f)
                 )
                 Box(
-                    modifier = Modifier.width(48.dp).fillMaxHeight(),
+                    modifier = Modifier.width(48.dp).offset(x = (-8).dp),
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(onClick = { decodeLink() }) {
