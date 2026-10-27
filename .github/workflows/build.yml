@@ -64,11 +64,11 @@ jobs:
       run: |
         cp -r ${{ github.workspace }}/libs ${{ github.workspace }}/V2rayNG/app
 
-    - name: Setup Java
+    - name: Setup Java 17 for sing-box
       uses: actions/setup-java@v6.1.0
       with:
         distribution: 'temurin'
-        java-version: '21'
+        java-version: '17'
 
     - name: Setup Go
       uses: actions/setup-go@v6
@@ -87,6 +87,12 @@ jobs:
         go run ./cmd/internal/build_libbox -target android
         cp libbox.aar ${{ github.workspace }}/V2rayNG/app/libs/libbox.aar
         cp libbox-legacy.aar ${{ github.workspace }}/V2rayNG/app/libs/libbox-legacy.aar
+
+    - name: Setup Java 21 for v2rayNG build
+      uses: actions/setup-java@v6.1.0
+      with:
+        distribution: 'temurin'
+        java-version: '21'
 
     - name: Fetch AndroidLibXrayLite tag
       run: |
