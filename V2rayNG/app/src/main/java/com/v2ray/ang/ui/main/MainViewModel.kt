@@ -106,8 +106,12 @@ class MainViewModel(
                 updateRunningState(true)
             }
 
-            MainServiceEvent.StateStartFailure -> {
-                toastError(R.string.toast_services_failure)
+            is MainServiceEvent.StateStartFailure -> {
+                if (!event.message.isNullOrBlank()) {
+                    toastError(event.message)
+                } else {
+                    toastError(R.string.toast_services_failure)
+                }
                 updateRunningState(false)
             }
 
@@ -116,12 +120,20 @@ class MainViewModel(
                 _uiState.update { it.copy(status = MainStatus.ConnectionTest(event.result)) }
             }
 
-            MainServiceEvent.MeasureConfigSuccess -> {
+            is MainServiceEvent.MeasureDelayCancelled -> {
+                // Ignore or reset
+            }
+
+            is MainServiceEvent.MeasureConfigSuccess -> {
                 viewModelScope.launch(ioDispatcher) {
                     val gid = testingGroupId ?: uiState.value.selectedGroupId
                     cacheMutex.withLock { groupDataCache.remove(gid) }
                     updateGroupUi(gid, loadGroup(gid, forceRefresh = true))
                 }
+            }
+
+            is MainServiceEvent.MeasureConfigCancelled -> {
+                // Ignore or reset
             }
 
             is MainServiceEvent.MeasureConfigNotify -> {
@@ -231,7 +243,8 @@ class MainViewModel(
             MainAction.LocateSelectedServer,
             is MainAction.EditServer,
             is MainAction.ShareClipboard,
-            is MainAction.ShareFullContent -> {
+            is MainAction.ShareFullContent,
+            is MainAction.OpenSubscriptionLink -> {
                 // Handled by Activity via its onAction lambda
             }
         }
@@ -471,7 +484,13 @@ class MainViewModel(
                             toast(R.string.title_update_subscription_no_subscription)
 
                         result.successCount > 0 && result.failureCount + result.skipCount == 0 ->
-                            toast(dataSource.getString(R.string.title_update_config_count, result.configCount))
+                            toast(
+                                getQuantityString(
+                                    R.plurals.title_update_config_count,
+                                    result.configCount,
+                                    result.configCount,
+                                )
+                            )
 
                         else ->
                             toast(dataSource.getString(R.string.title_update_subscription_result, result.configCount, result.successCount, result.failureCount, result.skipCount))
@@ -833,8 +852,9 @@ class MainViewModel(
     }
 
     fun testCurrentServerRealPing() {
+        if (!uiState.value.isRunning) return
         _uiState.update { it.copy(status = MainStatus.Testing) }
-        dataSource.testCurrentServerRealPing()
+        dataSource.testCurrentServerRealPing("")
     }
 
     /**

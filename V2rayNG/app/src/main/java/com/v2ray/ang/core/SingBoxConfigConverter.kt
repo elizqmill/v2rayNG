@@ -59,7 +59,7 @@ object SingBoxConfigConverter {
         addProperty("server", profile.server.orEmpty())
         addProperty("server_port", profile.serverPort?.toIntOrNull() ?: 443)
         addProperty("password", profile.password.orEmpty())
-        profile.sni?.takeIf { it.isNotBlank() }?.let { addProperty("tls", JsonObject().apply {
+        profile.sni?.takeIf { it.isNotBlank() }?.let { add("tls", JsonObject().apply {
             addProperty("enabled", true)
             addProperty("server_name", it)
             addProperty("insecure", profile.insecure == true)
