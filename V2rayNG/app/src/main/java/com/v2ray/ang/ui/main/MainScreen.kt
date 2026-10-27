@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -59,11 +60,17 @@ fun MainScreen(
     var showDelDuplicateConfirm by remember { mutableStateOf(false) }
     var showDelInvalidConfirm by remember { mutableStateOf(false) }
     var showDelZeroSpeedConfirm by remember { mutableStateOf(false) }
-    var showRemoveConfirm by remember { mutableStateOf<String?>(null) }
+    var showRemoveConfirm by rememberSaveable(stateSaver = ServerDeleteTarget.Saver) {
+        mutableStateOf<ServerDeleteTarget?>(null)
+    }
 
     var shareTarget by remember { mutableStateOf<Triple<String, ProfileItem, Boolean>?>(null) }
-    val removeServer: (String) -> Unit = { guid ->
-        if (confirmRemove) showRemoveConfirm = guid else onAction(MainAction.RemoveServer(guid))
+    val removeServer: (String, String) -> Unit = { guid, profileName ->
+        if (confirmRemove) {
+            showRemoveConfirm = ServerDeleteTarget(guid, profileName)
+        } else {
+            onAction(MainAction.RemoveServer(guid))
+        }
     }
 
     val pagerState = rememberPagerState(
@@ -278,6 +285,9 @@ fun MainScreen(
                                 shareTarget = Triple(guid, profile, true)
                             },
                             onRemoveServer = removeServer,
+                            usageInfo = group.usageInfo,
+                            groupTitle = group.remarks,
+                            onOpenLink = { url -> onAction(MainAction.OpenSubscriptionLink(url)) },
                             contentPadding = PaddingValues(
                                 start = 0.dp,
                                 top = 0.dp,

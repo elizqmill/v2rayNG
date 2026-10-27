@@ -24,5 +24,6 @@ data class SubscriptionItem(
     var autoSetInsecureWhenSha256Present: Boolean = false,
     /** When true, forces the update to be routed through the active proxy profile. */
     var updateViaActiveProxy: Boolean = false,
+    var usageInfo: SubscriptionUsageInfo? = null,
 )
 

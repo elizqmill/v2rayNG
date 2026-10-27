@@ -15,11 +15,13 @@ import com.tencent.mmkv.MMKVRecoverStrategic
 import com.v2ray.ang.AppConfig.DEFAULT_SUBSCRIPTION_ID
 import com.v2ray.ang.AppConfig.PREF_IS_BOOTED
 import com.v2ray.ang.AppConfig.PREF_ROUTING_RULESET
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.AppConfig.TAG
 import com.v2ray.ang.BuildConfig
 import com.v2ray.ang.dto.entities.AssetUrlCache
 import com.v2ray.ang.dto.entities.AssetUrlItem
 import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.extension.isGroupType
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionCache
@@ -247,6 +249,107 @@ object MmkvManager {
      * @param guid The server GUID.
      * @return The server configuration.
      */
+    private fun parseStoredConfigType(value: com.google.gson.JsonElement?): EConfigType? {
+        if (value == null || value.isJsonNull || !value.isJsonPrimitive) return null
+        val primitive = value.asJsonPrimitive
+        if (primitive.isNumber) {
+            return runCatching { EConfigType.fromInt(primitive.asInt) }.getOrNull()
+        }
+        if (!primitive.isString) return null
+        val text = primitive.asString.trim()
+        if (text.isEmpty()) return null
+        return EConfigType.entries.firstOrNull {
+            it.name.equals(text, ignoreCase = true) ||
+                it.protocolScheme.equals(text, ignoreCase = true)
+        } ?: text.toIntOrNull()?.let(EConfigType::fromInt) ?: when (text.lowercase()) {
+            "ss" -> EConfigType.SHADOWSOCKS
+            "socks4", "socks5" -> EConfigType.SOCKS
+            "hy2", "hysteria2" -> EConfigType.HYSTERIA2
+            else -> null
+        }
+    }
+
+    private fun recoverStoredConfigType(
+        profileJson: com.google.gson.JsonObject,
+        guid: String,
+    ): EConfigType? {
+        parseStoredConfigType(profileJson.get("configType"))?.let { return it }
+        parseStoredConfigType(profileJson.get("config_type"))?.let { return it }
+
+        val rawConfig = serverRawStorage.decodeString(guid)?.trim().orEmpty()
+        if (rawConfig.isNotEmpty()) {
+            if (rawConfig.startsWith("{") && JsonUtil.parseString(rawConfig) != null) {
+                return EConfigType.CUSTOM
+            }
+            val rawScheme = rawConfig.substringBefore("://").substringBefore(":").trim()
+            parseStoredConfigType(com.google.gson.JsonPrimitive(rawScheme))?.let { return it }
+        }
+
+        fun value(name: String): String? {
+            val element = profileJson.get(name) ?: return null
+            if (element.isJsonNull || !element.isJsonPrimitive) return null
+            return element.asString.trim().takeIf { it.isNotEmpty() }
+        }
+
+        fun present(name: String): Boolean = value(name) != null
+
+        if (present("policyGroupType") ||
+            present("policyGroupSubscriptionId") ||
+            present("policyGroupFilter") ||
+            present("policyGroupFallbackTag") ||
+            present("policyGroupTestOutbounds")
+        ) {
+            return EConfigType.POLICYGROUP
+        }
+        if (present("proxyChainProfiles")) return EConfigType.PROXYCHAIN
+        if (present("secretKey") || present("localAddress") || present("reserved")) {
+            return EConfigType.WIREGUARD
+        }
+        if (present("obfsPassword") ||
+            present("portHopping") ||
+            present("portHoppingInterval") ||
+            present("bandwidthDown") ||
+            present("bandwidthUp") ||
+            value("network")?.lowercase() in setOf("hysteria", "hysteria2", "hy2")
+        ) {
+            return EConfigType.HYSTERIA2
+        }
+        if (present("flow") ||
+            present("mldsa65Verify") ||
+            present("shortId") ||
+            present("spiderX") ||
+            present("publicKey")
+        ) {
+            return EConfigType.VLESS
+        }
+
+        val method = value("method")
+        val password = value("password")
+        val username = value("username")
+        val network = value("network")
+        val security = value("security")
+        val headerType = value("headerType")
+
+        if (method.equals("none", ignoreCase = true)) return EConfigType.VLESS
+        if (method != null && (
+                method.equals(AppConfig.DEFAULT_SECURITY, ignoreCase = true) ||
+                    network != null ||
+                    headerType != null
+            )
+        ) {
+            return EConfigType.VMESS
+        }
+        if (username != null) return EConfigType.SOCKS
+        if (method != null && password != null && network == null && security == null) {
+            return EConfigType.SHADOWSOCKS
+        }
+        if (security != null || network != null) return EConfigType.TROJAN
+        if (value("server") != null && value("serverPort") != null) {
+            return if (password != null) EConfigType.TROJAN else EConfigType.SOCKS
+        }
+        return null
+    }
+
     fun decodeServerConfig(guid: String): ProfileItem? {
         if (guid.isBlank()) {
             return null
@@ -255,7 +358,14 @@ object MmkvManager {
         if (json.isNullOrBlank()) {
             return null
         }
-        return JsonUtil.fromJsonSafe(json, ProfileItem::class.java)
+        val profileJson = JsonUtil.parseString(json) ?: return null
+        val configType = recoverStoredConfigType(profileJson, guid)
+        if (configType == null) {
+            Log.e(TAG, "Cannot recover configType for server profile, guid=$guid")
+            return null
+        }
+        profileJson.addProperty("configType", configType.name)
+        return JsonUtil.fromJsonSafe(profileJson.toString(), ProfileItem::class.java)
     }
 
 
@@ -349,7 +459,9 @@ object MmkvManager {
             val serverList = if (append) {
                 decodeServerList(subscriptionId)
             } else {
-                mutableListOf()
+                replacedServers.filter { guid ->
+                    decodeServerConfig(guid)?.configType?.isGroupType() == true
+                }.toMutableList()
             }
             val indexedServers = serverList.toHashSet()
             profiles.keys.forEach { guid ->
@@ -373,7 +485,7 @@ object MmkvManager {
             val referencedByOtherGroups = decodeServersReferencedByOtherGroups(subscriptionId)
             val removablePayloads = ProfileReplacement.findRemovablePayloads(
                 replacedServers = replacedServers,
-                replacementServers = profiles.keys,
+                replacementServers = serverList.toSet(),
                 protectedServer = protectedServer,
                 serversReferencedByOtherGroups = referencedByOtherGroups,
             )
@@ -761,7 +873,8 @@ object MmkvManager {
         return if (json.isNullOrBlank()) {
             mutableListOf()
         } else {
-            JsonUtil.fromJsonSafe(json, Array<String>::class.java)?.toMutableList() ?: mutableListOf()
+            // Keep the first occurrence so a damaged index cannot produce duplicate Compose keys.
+            JsonUtil.fromJsonSafe(json, Array<String>::class.java)?.distinct()?.toMutableList() ?: mutableListOf()
         }
     }
 

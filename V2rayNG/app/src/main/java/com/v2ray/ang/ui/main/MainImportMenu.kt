@@ -83,7 +83,7 @@ fun ShareMethodDialog(
     more: Boolean,
     onDismiss: () -> Unit,
     onAction: (MainAction) -> Unit,
-    onRemove: (String) -> Unit,
+    onRemove: (String, String) -> Unit,
 ) {
     val menuActions = serverMenuActions(
         isComplexProfile = profile.configType.isComplexType(),
@@ -99,7 +99,7 @@ fun ShareMethodDialog(
                 ServerMenuAction.ShareClipboard -> onAction(MainAction.ShareClipboard(guid))
                 ServerMenuAction.ShareFullContent -> onAction(MainAction.ShareFullContent(guid))
                 ServerMenuAction.Edit -> onAction(MainAction.EditServer(guid, profile))
-                ServerMenuAction.Delete -> onRemove(guid)
+                ServerMenuAction.Delete -> onRemove(guid, profile.remarks)
             }
         },
         onDismiss = onDismiss
