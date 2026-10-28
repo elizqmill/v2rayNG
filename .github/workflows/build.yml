@@ -141,10 +141,16 @@ jobs:
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
         ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
+
+    - name: Stage APKs
+      run: |
         mkdir -p ${{ github.workspace }}/release-apks
-        find ${{ github.workspace }}/V2rayNG/app/build/ -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
-        echo "=== COPIED APKS ==="
+        cd ${{ github.workspace }}
+        find . -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
+        echo "=== ALL APK FILES FOUND IN RUNNER ==="
         ls -la ${{ github.workspace }}/release-apks/
+        echo "=== SEARCHING ALL .aab or .apk FILES ==="
+        find . -name "*release*" | grep -E "\.(apk|aab)$" || true
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -181,7 +187,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/release-apks/*.apk
+        files: ${{ github.workspace }}/release-apks/*
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -193,6 +199,7 @@ jobs:
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         prerelease: false
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
