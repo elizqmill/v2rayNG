@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -148,19 +149,19 @@ jobs:
           import os, urllib.request, json
           token = os.environ.get("GH_TOKEN")
           repo = "${{ github.repository }}"
-          sha = "${{ github.sha }}"
+          run_id = "${{ github.run_id }}"
           with open("${{ github.workspace }}/build.log") as f:
               lines = f.readlines()
           tail = "".join(lines[-80:])
           req = urllib.request.Request(
-              f"https://api.github.com/repos/{repo}/commits/{sha}/comments",
-              data=json.dumps({"body": f"```\n{tail}\n```"}).encode(),
+              f"https://api.github.com/repos/{repo}/issues",
+              data=json.dumps({"title": f"Build failure run {run_id}", "body": f"```\n{tail}\n```"}).encode(),
               headers={"Authorization": f"token {token}", "User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
           )
           try:
               urllib.request.urlopen(req)
           except Exception as e:
-              print("err:", e)
+              print("issue err:", e)
           '
           exit 1
         }
