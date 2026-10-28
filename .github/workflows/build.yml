@@ -145,7 +145,7 @@ jobs:
     - name: Stage APKs
       run: |
         mkdir -p ${{ github.workspace }}/release-apks
-        find ${{ github.workspace }}/V2rayNG/app/build/outputs/ -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \; || true
+        find ${{ github.workspace }} -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \; || true
         echo "=== CHECKING release-apks ==="
         ls -la ${{ github.workspace }}/release-apks/
 
