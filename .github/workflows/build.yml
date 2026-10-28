@@ -140,11 +140,16 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > ${{ github.workspace }}/gradle_build.log 2>&1 || {
-          echo "=== BUILD FAILED, LOG TAIL ==="
-          tail -n 150 ${{ github.workspace }}/gradle_build.log
-          exit 1
-        }
+        ./gradlew assembleRelease --stacktrace --info -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+
+    - name: Upload build reports on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-failure-reports
+        path: |
+          ${{ github.workspace }}/V2rayNG/app/build/reports/
+          ${{ github.workspace }}/V2rayNG/build/reports/
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
