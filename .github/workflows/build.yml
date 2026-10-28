@@ -140,11 +140,15 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease \
+        ./gradlew assemblePlaystoreRelease --stacktrace \
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/gradle_err.log 2>&1 || {
+          echo "==== PRINTING GRADLE ERROR LOG ===="
+          cat /tmp/gradle_err.log | grep -A 10 -B 2 "FAILURE:" || tail -n 60 /tmp/gradle_err.log
+          exit 1
+        }
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
