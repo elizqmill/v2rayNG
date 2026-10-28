@@ -140,49 +140,48 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace || true
-        ./gradlew assembleFdroidRelease --stacktrace || true
-        echo "=== ALL FILES IN app/build ==="
-        find app/build/ -type f || true
+        ./gradlew assemblePlaystoreRelease \
+          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: arm64-v8a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*arm64-v8a*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*arm64-v8a*.apk
+        if-no-files-found: error
 
     - name: Upload armeabi-v7a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: armeabi-v7a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*armeabi-v7a*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*armeabi-v7a*.apk
+        if-no-files-found: error
 
     - name: Upload x86 APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: x86-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*x86*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*x86*.apk
+        if-no-files-found: error
 
     - name: Upload universal APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: universal-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*universal*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*universal*.apk
+        if-no-files-found: error
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          V2rayNG/app/build/outputs/apk/playstore/release/*.apk
-          V2rayNG/app/build/outputs/apk/fdroid/release/*.apk
+        files: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -202,7 +201,7 @@ jobs:
       run: |
         TAG="${{ steps.tag.outputs.value }}"
         echo "Uploading outputs to release tag $TAG via gh cli"
-        find V2rayNG/app/build/ -name "*.apk" | while read -r apk; do
+        find ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/ -name "*.apk" | while read -r apk; do
           echo "Uploading $apk"
           gh release upload "$TAG" "$apk" --clobber || true
         done
