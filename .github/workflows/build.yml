@@ -140,17 +140,12 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assembleRelease --stacktrace \
-          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
-          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
-          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
 
     - name: Stage APKs
       run: |
         mkdir -p ${{ github.workspace }}/release-apks
-        cd ${{ github.workspace }}/V2rayNG
-        find app/build/outputs/ -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
+        find ${{ github.workspace }}/V2rayNG/app/build/outputs/ -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \; || true
         echo "=== CHECKING release-apks ==="
         ls -la ${{ github.workspace }}/release-apks/
 
@@ -191,7 +186,8 @@ jobs:
       with:
         files: |
           ${{ github.workspace }}/release-apks/*
-          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*.apk
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*.apk
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/fdroid/release/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
