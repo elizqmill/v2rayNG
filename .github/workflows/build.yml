@@ -96,11 +96,21 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
 
-    - name: Download libv2ray
+    - name: Fetch AndroidLibXrayLite tag
       run: |
-        TAG_NAME="v26.10.21"
-        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/${TAG_NAME}/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
-        ls -lh ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
+        pushd AndroidLibXrayLite
+        CURRENT_TAG=$(git describe --tags --abbrev=0)
+        echo "Current tag in this repo: $CURRENT_TAG"
+        echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
+        popd
+
+    - name: Download libv2ray
+      uses: robinraju/release-downloader@v1.13
+      with:
+        repository: '2dust/AndroidLibXrayLite'
+        tag: ${{ env.CURRENT_TAG }}
+        fileName: 'libv2ray.aar'
+        out-file-path: V2rayNG/app/libs/
 
     - name: Verify libs directory
       run: |
@@ -121,7 +131,8 @@ jobs:
           echo "value=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
         else
           VERSION=$(grep -m1 'versionName' ${{ github.workspace }}/V2rayNG/app/build.gradle.kts | grep -oP '"\K[^"]+')
-          echo "value=v${VERSION}" >> $GITHUB_OUTPUT
+          DATE=$(date +'%Y%m%d-%H%M')
+          echo "value=v${VERSION}-wl-${DATE}" >> $GITHUB_OUTPUT
         fi
 
     - name: Build APK
@@ -129,47 +140,44 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
-        mkdir -p ${{ github.workspace }}/final-release-apks
-        find app/build/outputs/apk -name "*.apk" -print -exec cp -t ${{ github.workspace }}/final-release-apks/ {} + || cp app/build/outputs/apk/*/*/*.apk ${{ github.workspace }}/final-release-apks/
-        echo "Contents of final-release-apks:"
-        ls -la ${{ github.workspace }}/final-release-apks/
+        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: arm64-v8a
-        path: ${{ github.workspace }}/final-release-apks/*arm64-v8a*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*arm64-v8a*.apk
 
     - name: Upload armeabi-v7a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: armeabi-v7a
-        path: ${{ github.workspace }}/final-release-apks/*armeabi-v7a*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*armeabi-v7a*.apk
 
     - name: Upload x86 APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: x86-apk
-        path: ${{ github.workspace }}/final-release-apks/*x86*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*x86*.apk
 
     - name: Upload universal APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: universal-apk
-        path: ${{ github.workspace }}/final-release-apks/*universal*.apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*universal*.apk
 
     - name: Create GitHub Release
-      uses: svenstaro/upload-release-action@v2
+      uses: softprops/action-gh-release@v2
       with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: ${{ github.workspace }}/final-release-apks/*.apk
-        tag: ${{ steps.tag.outputs.value }}
-        release_name: ${{ steps.tag.outputs.value }}
+        files: |
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*.apk
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*.apk
+        tag_name: ${{ steps.tag.outputs.value }}
+        name: ${{ steps.tag.outputs.value }}
         body: |
           ${{ github.event.head_commit.message }}
 
@@ -178,9 +186,10 @@ jobs:
           **APK:** `universal` / `arm64-v8a` / `armeabi-v7a` / `x86_64` / `x86`
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
-        file_glob: true
         prerelease: false
-        overwrite: true
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sign-and-release:
     needs: build
