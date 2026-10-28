@@ -204,7 +204,10 @@ jobs:
     - name: Upload APKs to Release via gh cli
       run: |
         TAG="${{ steps.tag.outputs.value }}"
-        gh release upload "$TAG" ${{ github.workspace }}/release-apks/*.apk --clobber
+        echo "Uploading to release tag: $TAG"
+        for f in ${{ github.workspace }}/release-apks/*.apk; do
+          [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber || true
+        done
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
