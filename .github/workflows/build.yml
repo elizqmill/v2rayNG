@@ -103,14 +103,21 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
 
-    - name: Download libv2ray
+    - name: Fetch AndroidLibXrayLite tag
       run: |
         pushd AndroidLibXrayLite
         CURRENT_TAG=$(git describe --tags --abbrev=0)
+        echo "Current tag in this repo: $CURRENT_TAG"
+        echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
         popd
-        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/${CURRENT_TAG}/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar || \
-        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/v26.10.21/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
-        ls -lh ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
+
+    - name: Download libv2ray
+      uses: robinraju/release-downloader@v1.13
+      with:
+        repository: '2dust/AndroidLibXrayLite'
+        tag: ${{ env.CURRENT_TAG }}
+        fileName: 'libv2ray.aar'
+        out-file-path: V2rayNG/app/libs/
 
     - name: Verify libs directory
       run: |
@@ -144,7 +151,13 @@ jobs:
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/build_gradle.log 2>&1 || {
+          echo "=== GRADLE FAILURE LOG HEAD ==="
+          grep -m 15 -E "(FAILED|Exception|error:|e:)" /tmp/build_gradle.log || head -n 40 /tmp/build_gradle.log
+          echo "=== GRADLE FAILURE LOG TAIL ==="
+          tail -n 60 /tmp/build_gradle.log
+          exit 1
+        }
 
     - name: Stage APKs
       run: |
