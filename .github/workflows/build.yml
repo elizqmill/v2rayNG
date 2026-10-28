@@ -140,16 +140,15 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew licenseFdroidReleaseReport
-        ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+        ./gradlew assemblePlaystoreRelease assembleFdroidRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
 
     - name: Stage APKs
       run: |
         mkdir -p ${{ github.workspace }}/release-apks
-        echo "=== SEARCHING ALL APKs ACROSS ROOT ==="
-        find /home/runner/ -name "*.apk" 2>/dev/null || true
-        find ${{ github.workspace }} -name "*.apk" -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
-        echo "=== LISTING release-apks ==="
+        cd ${{ github.workspace }}/V2rayNG
+        find app/build/outputs/apk/ -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/release-apks/ \; || true
+        find ${{ github.workspace }} -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/release-apks/ \; || true
+        echo "=== CHECKING release-apks ==="
         ls -la ${{ github.workspace }}/release-apks/
 
     - name: Upload arm64-v8a APK
@@ -206,8 +205,12 @@ jobs:
       run: |
         TAG="${{ steps.tag.outputs.value }}"
         echo "Uploading to release tag: $TAG"
-        for f in ${{ github.workspace }}/release-apks/*.apk; do
-          [ -f "$f" ] && gh release upload "$TAG" "$f" --clobber || true
+        cd ${{ github.workspace }}/release-apks
+        for f in *.apk; do
+          if [ -f "$f" ]; then
+            echo "Uploading $f..."
+            gh release upload "$TAG" "$f" --clobber
+          fi
         done
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
