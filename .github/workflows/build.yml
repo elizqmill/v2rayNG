@@ -140,9 +140,10 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
+        ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
         mkdir -p ${{ github.workspace }}/final-apks
-        find ${{ github.workspace }}/V2rayNG -name "*.apk" -print -exec cp {} ${{ github.workspace }}/final-apks/ \;
+        cp -v app/build/outputs/apk/*/*/*.apk ${{ github.workspace }}/final-apks/ || true
+        cp -v app/build/outputs/apk/*/*.apk ${{ github.workspace }}/final-apks/ || true
         ls -la ${{ github.workspace }}/final-apks/
 
     - name: Upload arm64-v8a APK
@@ -151,7 +152,7 @@ jobs:
       with:
         name: arm64-v8a
         path: ${{ github.workspace }}/final-apks/*arm64-v8a*.apk
-        if-no-files-found: ignore
+        if-no-files-found: warn
 
     - name: Upload armeabi-v7a APK
       uses: actions/upload-artifact@v4
@@ -159,7 +160,7 @@ jobs:
       with:
         name: armeabi-v7a
         path: ${{ github.workspace }}/final-apks/*armeabi-v7a*.apk
-        if-no-files-found: ignore
+        if-no-files-found: warn
 
     - name: Upload x86 APK
       uses: actions/upload-artifact@v4
@@ -167,7 +168,7 @@ jobs:
       with:
         name: x86-apk
         path: ${{ github.workspace }}/final-apks/*x86*.apk
-        if-no-files-found: ignore
+        if-no-files-found: warn
 
     - name: Upload universal APK
       uses: actions/upload-artifact@v4
@@ -175,7 +176,7 @@ jobs:
       with:
         name: universal-apk
         path: ${{ github.workspace }}/final-apks/*universal*.apk
-        if-no-files-found: ignore
+        if-no-files-found: warn
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
@@ -192,7 +193,6 @@ jobs:
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         prerelease: false
-        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
