@@ -105,12 +105,10 @@ jobs:
         popd
 
     - name: Download libv2ray
-      uses: robinraju/release-downloader@v1.13
-      with:
-        repository: '2dust/AndroidLibXrayLite'
-        tag: ${{ env.CURRENT_TAG }}
-        fileName: 'libv2ray.aar'
-        out-file-path: V2rayNG/app/libs/
+      run: |
+        TAG_NAME="v26.10.21"
+        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/${TAG_NAME}/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
+        ls -lh ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
 
     - name: Verify libs directory
       run: |
@@ -140,18 +138,12 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/build_gradle.log 2>&1 || {
-          echo "### LAST 100 LINES OF BUILD LOG ###"
-          tail -n 100 /tmp/build_gradle.log
-          exit 1
-        }
+        ./gradlew assemblePlaystoreRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
 
     - name: Stage APKs
       run: |
         mkdir -p ${{ github.workspace }}/final-apks
-        for f in $(find ${{ github.workspace }}/V2rayNG/app/build/outputs/ -type f -name "*.apk"); do
-          cp -v "$f" ${{ github.workspace }}/final-apks/
-        done
+        find ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/ -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/final-apks/ \; || true
         ls -la ${{ github.workspace }}/final-apks/
 
     - name: Upload arm64-v8a APK
