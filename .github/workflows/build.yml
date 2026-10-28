@@ -18,6 +18,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Free Disk Space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        df -h
+
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -96,18 +103,13 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
 
-    - name: Fetch AndroidLibXrayLite tag
+    - name: Download libv2ray
       run: |
         pushd AndroidLibXrayLite
         CURRENT_TAG=$(git describe --tags --abbrev=0)
-        echo "Current tag in this repo: $CURRENT_TAG"
-        echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
         popd
-
-    - name: Download libv2ray
-      run: |
-        TAG_NAME="v26.10.21"
-        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/${TAG_NAME}/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
+        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/${CURRENT_TAG}/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar || \
+        curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/v26.10.21/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
         ls -lh ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
 
     - name: Verify libs directory
@@ -138,7 +140,11 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+        ./gradlew assemblePlaystoreRelease --stacktrace \
+          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
 
     - name: Stage APKs
       run: |
