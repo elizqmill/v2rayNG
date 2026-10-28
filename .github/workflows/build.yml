@@ -144,7 +144,15 @@ jobs:
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || {
+          echo "==== DIRECT GRADLE FAILURE OUTPUT ===="
+          ./gradlew assemblePlaystoreRelease --stacktrace \
+            -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+            -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} --info | grep -C 5 -E "(FAILED|Exception|error:)" | head -n 40
+          exit 1
+        }
 
     - name: Stage APKs
       run: |
