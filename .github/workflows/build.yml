@@ -136,13 +136,32 @@ jobs:
         fi
 
     - name: Build APK
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || {
-          echo "=== GRADLE DAEMON LOGS ==="
-          cat ~/.gradle/daemon/*/*.log 2>/dev/null | tail -n 120 || true
+        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > ${{ github.workspace }}/build.log 2>&1 || {
+          tail -n 80 ${{ github.workspace }}/build.log
+          python3 -c '
+          import os, urllib.request, json
+          token = os.environ.get("GH_TOKEN")
+          repo = "${{ github.repository }}"
+          sha = "${{ github.sha }}"
+          with open("${{ github.workspace }}/build.log") as f:
+              lines = f.readlines()
+          tail = "".join(lines[-80:])
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/commits/{sha}/comments",
+              data=json.dumps({"body": f"```\n{tail}\n```"}).encode(),
+              headers={"Authorization": f"token {token}", "User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
+          )
+          try:
+              urllib.request.urlopen(req)
+          except Exception as e:
+              print("err:", e)
+          '
           exit 1
         }
 
