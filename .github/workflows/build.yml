@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   build:
@@ -141,54 +140,40 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease assembleFdroidRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
-
-    - name: Stage APKs
-      run: |
-        mkdir -p ${{ github.workspace }}/release-apks
-        find /home/runner/work/ -name "*.apk" 2>/dev/null | while read -r apk; do
-          echo "Found APK: $apk"
-          cp -v "$apk" ${{ github.workspace }}/release-apks/
-        done
-        echo "=== CHECKING release-apks ==="
-        ls -la ${{ github.workspace }}/release-apks/
+        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: arm64-v8a
-        path: ${{ github.workspace }}/release-apks/*arm64-v8a*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*arm64-v8a*.apk
 
     - name: Upload armeabi-v7a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: armeabi-v7a
-        path: ${{ github.workspace }}/release-apks/*armeabi-v7a*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*armeabi-v7a*.apk
 
     - name: Upload x86 APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: x86-apk
-        path: ${{ github.workspace }}/release-apks/*x86*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*x86*.apk
 
     - name: Upload universal APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: universal-apk
-        path: ${{ github.workspace }}/release-apks/*universal*.apk
-        if-no-files-found: ignore
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/release/*universal*.apk
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/release-apks/*
+        files: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -200,23 +185,8 @@ jobs:
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         prerelease: false
-        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload APKs to Release via gh cli
-      run: |
-        TAG="${{ steps.tag.outputs.value }}"
-        echo "Uploading to release tag: $TAG"
-        cd ${{ github.workspace }}/release-apks
-        for f in *.apk; do
-          if [ -f "$f" ]; then
-            echo "Uploading $f..."
-            gh release upload "$TAG" "$f" --clobber
-          fi
-        done
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sign-and-release:
     needs: build
