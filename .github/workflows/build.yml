@@ -140,10 +140,18 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
+        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
         mkdir -p ${{ github.workspace }}/final-release-apks
-        find ${{ github.workspace }}/V2rayNG/app/build/ -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/final-release-apks/ \;
+        find ${{ github.workspace }} -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/final-release-apks/ \;
+        echo "=== FINAL APKS ==="
         ls -la ${{ github.workspace }}/final-release-apks/
+
+    - name: Upload all APKs
+      uses: actions/upload-artifact@v4
+      if: ${{ success() }}
+      with:
+        name: all-apks
+        path: ${{ github.workspace }}/final-release-apks/
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -176,7 +184,8 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/final-release-apks/*.apk
+        files: |
+          ${{ github.workspace }}/final-release-apks/*
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
