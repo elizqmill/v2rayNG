@@ -144,8 +144,11 @@ jobs:
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || \
-        ./gradlew assembleDebug --stacktrace
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/build_err.log 2>&1 || {
+          echo "==== BUILD LOG TAIL ===="
+          tail -n 60 /tmp/build_err.log
+          exit 1
+        }
         mkdir -p ${{ github.workspace }}/release-files
         find . -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-files/ \;
         echo "=== ALL APKS ==="
