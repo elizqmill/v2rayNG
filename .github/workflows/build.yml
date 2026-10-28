@@ -141,9 +141,12 @@ jobs:
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
         ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+
+    - name: Collect APKs
+      run: |
         mkdir -p ${{ github.workspace }}/release-apks
-        find . -type f -name "*.apk" -exec cp {} ${{ github.workspace }}/release-apks/ \;
-        ls -lh ${{ github.workspace }}/release-apks/
+        find ${{ github.workspace }}/V2rayNG -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/release-apks/ \; || true
+        ls -la ${{ github.workspace }}/release-apks/
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -176,7 +179,10 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/release-apks/*.apk
+        files: |
+          ${{ github.workspace }}/release-apks/*.apk
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*.apk
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
