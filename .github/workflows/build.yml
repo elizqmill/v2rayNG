@@ -148,6 +148,7 @@ jobs:
         find ${{ github.workspace }}/V2rayNG/app/build/ -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
         echo "=== CHECKING release-apks ==="
         ls -la ${{ github.workspace }}/release-apks/
+        [ "$(ls -A ${{ github.workspace }}/release-apks/ 2>/dev/null)" ] || { echo "ERROR: No APKs were staged!"; exit 1; }
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -184,10 +185,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          ${{ github.workspace }}/release-apks/*
-          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*.apk
-          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/fdroid/release/*.apk
+        files: ${{ github.workspace }}/release-apks/*
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -199,9 +197,15 @@ jobs:
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         prerelease: false
-        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload APKs to Release via gh cli
+      run: |
+        TAG="${{ steps.tag.outputs.value }}"
+        gh release upload "$TAG" ${{ github.workspace }}/release-apks/*.apk --clobber
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sign-and-release:
     needs: build
