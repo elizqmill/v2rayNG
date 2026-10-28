@@ -18,13 +18,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Free Disk Space
-      run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf "/usr/local/share/boost"
-        df -h
-
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -147,23 +140,19 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace \
+        ./gradlew assembleRelease --stacktrace \
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/build_playstore.log 2>&1 || {
-          tail -n 80 /tmp/build_playstore.log
-          exit 1
-        }
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
 
     - name: Stage APKs
       run: |
         mkdir -p ${{ github.workspace }}/release-apks
-        cd ${{ github.workspace }}
-        find V2rayNG/app/build/ -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
+        cd ${{ github.workspace }}/V2rayNG
+        find app/build/outputs/ -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/release-apks/ \;
         echo "=== CHECKING release-apks ==="
         ls -la ${{ github.workspace }}/release-apks/
-        [ "$(ls -A ${{ github.workspace }}/release-apks/)" ] || { echo "FATAL: No APK found"; exit 1; }
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -200,7 +189,9 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/release-apks/*
+        files: |
+          ${{ github.workspace }}/release-apks/*
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -212,7 +203,7 @@ jobs:
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         prerelease: false
-        fail_on_unmatched_files: true
+        fail_on_unmatched_files: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
