@@ -173,7 +173,7 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*.apk
+        files: V2rayNG/app/build/outputs/apk/**/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
