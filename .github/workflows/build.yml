@@ -91,17 +91,17 @@ jobs:
         cp libbox-legacy.aar ${{ github.workspace }}/V2rayNG/app/libs/libbox-legacy.aar
         ls -la ${{ github.workspace }}/V2rayNG/app/libs/
 
-    - name: Setup Java 21 for v2rayNG build
-      uses: actions/setup-java@v6.1.0
-      with:
-        distribution: 'temurin'
-        java-version: '21'
-
     - name: Download libv2ray
       run: |
         TAG_NAME="v26.10.21"
         curl -f -sL "https://github.com/2dust/AndroidLibXrayLite/releases/download/${TAG_NAME}/libv2ray.aar" -o ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
         ls -lh ${{ github.workspace }}/V2rayNG/app/libs/libv2ray.aar
+
+    - name: Setup Java 21 for v2rayNG build
+      uses: actions/setup-java@v6.1.0
+      with:
+        distribution: 'temurin'
+        java-version: '21'
 
     - name: Verify libs directory
       run: |
@@ -131,31 +131,46 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace \
+        ./gradlew assembleRelease \
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
           -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
 
-    - name: Report failure directly
-      if: failure()
-      run: |
-        echo "=== FAILED TASK DETAILS ==="
-        find ${{ github.workspace }}/V2rayNG/ -name "*.log" -exec cat {} + 2>/dev/null || true
-        find ${{ github.workspace }}/V2rayNG/app/build/reports -type f -exec cat {} + 2>/dev/null || true
-
-    - name: Upload APKs
+    - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
-        name: apks
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/
-        if-no-files-found: warn
+        name: arm64-v8a
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*arm64-v8a*.apk
+
+    - name: Upload armeabi-v7a APK
+      uses: actions/upload-artifact@v4
+      if: ${{ success() }}
+      with:
+        name: armeabi-v7a
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*armeabi-v7a*.apk
+
+    - name: Upload x86 APK
+      uses: actions/upload-artifact@v4
+      if: ${{ success() }}
+      with:
+        name: x86-apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*x86*.apk
+
+    - name: Upload universal APK
+      uses: actions/upload-artifact@v4
+      if: ${{ success() }}
+      with:
+        name: universal-apk
+        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*universal*.apk
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*.apk
+        files: |
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/playstore/release/*.apk
+          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/fdroid/release/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
