@@ -140,42 +140,43 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
+        ./gradlew assembleRelease --stacktrace -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+        mkdir -p ${{ github.workspace }}/release-apks
+        find . -type f -name "*.apk" -exec cp {} ${{ github.workspace }}/release-apks/ \;
+        ls -lh ${{ github.workspace }}/release-apks/
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: arm64-v8a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*arm64-v8a*.apk
+        path: ${{ github.workspace }}/release-apks/*arm64-v8a*.apk
 
     - name: Upload armeabi-v7a APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: armeabi-v7a
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*armeabi-v7a*.apk
+        path: ${{ github.workspace }}/release-apks/*armeabi-v7a*.apk
 
     - name: Upload x86 APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: x86-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*x86*.apk
+        path: ${{ github.workspace }}/release-apks/*x86*.apk
 
     - name: Upload universal APK
       uses: actions/upload-artifact@v4
       if: ${{ success() }}
       with:
         name: universal-apk
-        path: ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/**/*universal*.apk
+        path: ${{ github.workspace }}/release-apks/*universal*.apk
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*.apk
-          ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*.apk
+        files: ${{ github.workspace }}/release-apks/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
