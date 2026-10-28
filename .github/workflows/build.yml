@@ -134,13 +134,16 @@ jobs:
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} 2>&1 | tee ${{ github.workspace }}/V2rayNG/build.log
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+
+    - name: Stage APKs
+      run: |
         mkdir -p ${{ github.workspace }}/final-release-apks
-        find ${{ github.workspace }} -type f -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/final-release-apks/ \;
-        echo "=== LISTING final-release-apks ==="
+        cd ${{ github.workspace }}/V2rayNG
+        find app/build/outputs/apk/ -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/final-release-apks/ \;
+        echo "=== FINAL APKS ==="
         ls -la ${{ github.workspace }}/final-release-apks/
-        echo "=== LISTING app/build/outputs/ ==="
-        find app/build/outputs/ || true
+        test -n "$(ls -A ${{ github.workspace }}/final-release-apks/ 2>/dev/null)" || { echo "ERROR: No APKs were produced in final-release-apks!"; exit 1; }
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -189,6 +192,7 @@ jobs:
           Не знаете архитектуру устройства — берите `universal`.
           Вариант `-fdroid` — то же приложение для F-Droid-раздачи.
         prerelease: false
+        fail_on_unmatched_files: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
