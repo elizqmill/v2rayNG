@@ -162,6 +162,15 @@ jobs:
           cat "$f" | head -n 100
         done
         find /tmp/ -name "hs_err*" -exec cat {} + || true
+
+    - name: Upload Build Reports
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gradle-failure-reports
+        path: |
+          ${{ github.workspace }}/V2rayNG/app/build/reports/
+          /tmp/hs_err*
     - name: Upload APKs to Release
       if: success()
       run: |
