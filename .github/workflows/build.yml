@@ -140,57 +140,22 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease \
+        ./gradlew assemblePlaystoreRelease --stacktrace \
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} --stacktrace || {
-          echo "=== BUILD LOG FAILURE ==="
-          ./gradlew assemblePlaystoreRelease --info
-          exit 1
-        }
-        echo "=== APP OUTPUTS AFTER PLAYSTORE BUILD ==="
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
+        ./gradlew assembleFdroidRelease --stacktrace \
+          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
+        echo "=== APP OUTPUTS AFTER BUILD ==="
         find app/build/outputs/ -type f || true
-
-    - name: Upload arm64-v8a APK
-      uses: actions/upload-artifact@v4
-      if: ${{ success() }}
-      with:
-        name: arm64-v8a
-        path: ${{ github.workspace }}/final-release-files/*arm64-v8a*.apk
-        if-no-files-found: ignore
-
-    - name: Upload armeabi-v7a APK
-      uses: actions/upload-artifact@v4
-      if: ${{ success() }}
-      with:
-        name: armeabi-v7a
-        path: ${{ github.workspace }}/final-release-files/*armeabi-v7a*.apk
-        if-no-files-found: ignore
-
-    - name: Upload x86 APK
-      uses: actions/upload-artifact@v4
-      if: ${{ success() }}
-      with:
-        name: x86-apk
-        path: ${{ github.workspace }}/final-release-files/*x86*.apk
-        if-no-files-found: ignore
-
-    - name: Upload universal APK
-      uses: actions/upload-artifact@v4
-      if: ${{ success() }}
-      with:
-        name: universal-apk
-        path: ${{ github.workspace }}/final-release-files/*universal*.apk
-        if-no-files-found: ignore
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
-      id: create_release
       with:
-        files: |
-          final-release-files/*.apk
-          ${{ github.workspace }}/final-release-files/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -208,13 +173,12 @@ jobs:
     - name: Direct Upload to Release via gh cli
       run: |
         TAG="${{ steps.tag.outputs.value }}"
-        echo "=== ALL FILES IN RUNNER WORKSPACE ==="
-        find ${{ github.workspace }} -type f
         echo "=== UPLOADING TO RELEASE $TAG ==="
         find ${{ github.workspace }} -type f -name "*.apk" | while read -r apk; do
           echo "Uploading $apk to $TAG"
           gh release upload "$TAG" "$apk" --clobber
         done
+        gh release view "$TAG"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
