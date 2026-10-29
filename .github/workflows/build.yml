@@ -140,20 +140,17 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace \
+        ./gradlew assemblePlaystoreRelease \
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
-        ./gradlew assembleFdroidRelease --stacktrace \
-          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
-          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
-          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
-        mkdir -p ${{ github.workspace }}/final-release-files
-        find ${{ github.workspace }} -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/final-release-files/ \;
-        echo "=== FINAL FILES ==="
-        ls -la ${{ github.workspace }}/final-release-files/
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} --stacktrace || {
+          echo "=== BUILD LOG FAILURE ==="
+          ./gradlew assemblePlaystoreRelease --info
+          exit 1
+        }
+        echo "=== APP OUTPUTS AFTER PLAYSTORE BUILD ==="
+        find app/build/outputs/ -type f || true
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -211,12 +208,12 @@ jobs:
     - name: Direct Upload to Release via gh cli
       run: |
         TAG="${{ steps.tag.outputs.value }}"
+        echo "=== ALL FILES IN RUNNER WORKSPACE ==="
+        find ${{ github.workspace }} -type f
         echo "=== UPLOADING TO RELEASE $TAG ==="
-        for apk in ${{ github.workspace }}/final-release-files/*.apk; do
-          if [ -f "$apk" ]; then
-            echo "Uploading $apk to $TAG"
-            gh release upload "$TAG" "$apk" --clobber
-          fi
+        find ${{ github.workspace }} -type f -name "*.apk" | while read -r apk; do
+          echo "Uploading $apk to $TAG"
+          gh release upload "$TAG" "$apk" --clobber
         done
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
