@@ -170,14 +170,13 @@ jobs:
         done
         find /tmp/ -name "hs_err*" -exec cat {} + || true
 
-    - name: Upload Build Reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-out-log
-        path: |
-          /tmp/build_out.log
-          ${{ github.workspace }}/V2rayNG/app/build/reports/
+    - name: Print Failure Log
+      if: failure()
+      run: |
+        echo "=== GRADLE FAILURE LOG HEAD ==="
+        grep -m 20 -E "(FAILED|Exception|error:|e:)" /tmp/build_out.log || head -n 40 /tmp/build_out.log
+        echo "=== GRADLE FAILURE LOG TAIL ==="
+        tail -n 80 /tmp/build_out.log
     - name: Upload APKs to Release
       if: success()
       run: |
