@@ -152,6 +152,10 @@ jobs:
           -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
         echo "=== APP OUTPUTS AFTER BUILD ==="
         find app/build/outputs/ -type f || true
+        echo "=== PROBING DEBUG BUILD TO FORCE APK CREATION ==="
+        ./gradlew assemblePlaystoreDebug --stacktrace
+        echo "=== RE-CHECKING ALL APKS ==="
+        find app/build/outputs/ -name "*.apk" || true
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
