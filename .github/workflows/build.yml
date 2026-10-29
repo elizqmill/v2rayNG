@@ -137,7 +137,7 @@ jobs:
 
     - name: Create GitHub Release
       run: |
-        TAG="build-log-probe"
+        TAG="v2.3.13-log-probe"
         echo "Creating release $TAG..."
         gh release create "$TAG" \
           --title "$TAG" \
@@ -173,10 +173,11 @@ jobs:
     - name: Print Failure Log
       if: failure()
       run: |
-        echo "=== GRADLE FAILURE LOG HEAD ==="
-        grep -m 20 -E "(FAILED|Exception|error:|e:)" /tmp/build_out.log || head -n 40 /tmp/build_out.log
-        echo "=== GRADLE FAILURE LOG TAIL ==="
-        tail -n 80 /tmp/build_out.log
+        TAG="v2.3.13-log-probe"
+        echo "Uploading log to $TAG..."
+        gh release upload "$TAG" /tmp/build_out.log --clobber
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Upload APKs to Release
       if: success()
       run: |
