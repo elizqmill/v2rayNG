@@ -152,14 +152,14 @@ jobs:
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || {
-          echo "==== EXTRACTING GRADLE PROBLEMS AND HTML REPORTS ===="
-          find ${{ github.workspace }}/ -name "*problems*.html" -o -name "*report*.html" | while read -r html; do
-            echo "Report: $html"
-            cat "$html" | grep -A 5 -B 2 -E "(error|failure|exception|failed)" | head -n 40 || head -n 30 "$html"
-          done
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/build_out.log 2>&1 || {
+          TAG="${{ steps.tag.outputs.value }}"
+          echo "==== BUILD CRASHED - UPLOADING LOG TO RELEASE FOR INSPECTION ===="
+          gh release upload "$TAG" /tmp/build_out.log --clobber || true
           exit 1
         }
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Show Gradle Failure Report
       if: failure()
