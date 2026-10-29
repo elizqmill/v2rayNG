@@ -91,7 +91,7 @@ jobs:
         ls -la ${{ github.workspace }}/V2rayNG/app/libs/
 
     - name: Setup Java 21 for v2rayNG build
-      uses: actions/setup-java@v6.1.0
+      uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '21'
@@ -140,10 +140,7 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreDebug --stacktrace > /tmp/debug_err.log 2>&1 || {
-          tail -n 60 /tmp/debug_err.log
-          exit 1
-        }
+        ./gradlew assemblePlaystoreDebug --stacktrace
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
