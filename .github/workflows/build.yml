@@ -135,30 +135,6 @@ jobs:
           echo "value=v${VERSION}-wl-${DATE}" >> $GITHUB_OUTPUT
         fi
 
-    - name: Build APK
-      run: |
-        cd ${{ github.workspace }}/V2rayNG
-        echo "sdk.dir=${ANDROID_HOME}" > local.properties
-        chmod 755 gradlew
-        ./gradlew assemblePlaystoreRelease --stacktrace \
-          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
-          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
-          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
-        ./gradlew assembleFdroidRelease --stacktrace \
-          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
-          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
-          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
-        echo "=== CHECKING OUTPUTS IN V2rayNG/app ==="
-        ls -la app/build/ || true
-        ls -la app/build/outputs/ || true
-        echo "=== SEARCHING ALL .apk OR .aab IN V2rayNG ==="
-        find . -name "*.apk" -o -name "*.aab"
-        echo "=== TESTING LOCAL PACKAGE PLAYSTORE RELEASE ==="
-        ./gradlew packagePlaystoreRelease || true
-        find app/build/outputs/ -name "*.apk" || true
-
     - name: Create GitHub Release
       run: |
         TAG="${{ steps.tag.outputs.value }}"
@@ -166,10 +142,22 @@ jobs:
         gh release create "$TAG" \
           --title "$TAG" \
           --notes "${{ github.event.head_commit.message }}" || true
-        echo "Uploading assets..."
-        for f in $(find ${{ github.workspace }} -type f -name "*.apk" -o -name "*.aab"); do
-          echo "Found package: $f"
-          gh release upload "$TAG" "$f" --clobber
+
+    - name: Build APK
+      run: |
+        cd ${{ github.workspace }}/V2rayNG
+        echo "sdk.dir=${ANDROID_HOME}" > local.properties
+        chmod 755 gradlew
+        ./gradlew assembleRelease --stacktrace \
+          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
+        TAG="${{ steps.tag.outputs.value }}"
+        echo "=== UPLOADING APKs TO $TAG ==="
+        for apk in $(find app/build/ -type f -name "*.apk"); do
+          echo "Found APK: $apk"
+          gh release upload "$TAG" "$apk" --clobber
         done
         gh release view "$TAG"
       env:
