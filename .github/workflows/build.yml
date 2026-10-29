@@ -137,11 +137,11 @@ jobs:
 
     - name: Create GitHub Release
       run: |
-        TAG="${{ steps.tag.outputs.value }}"
+        TAG="build-log-probe"
         echo "Creating release $TAG..."
         gh release create "$TAG" \
           --title "$TAG" \
-          --notes "${{ github.event.head_commit.message }}" || true
+          --notes "diagnostic build" || true
 
     - name: Build APK
       run: |
@@ -153,9 +153,9 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
           -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} > /tmp/build_out.log 2>&1 || {
-          TAG="${{ steps.tag.outputs.value }}"
+          TAG="build-log-probe"
           echo "==== BUILD CRASHED - UPLOADING LOG TO RELEASE FOR INSPECTION ===="
-          gh release upload "$TAG" /tmp/build_out.log --clobber || true
+          gh release upload "$TAG" /tmp/build_out.log --clobber
           exit 1
         }
       env:
@@ -171,13 +171,13 @@ jobs:
         find /tmp/ -name "hs_err*" -exec cat {} + || true
 
     - name: Upload Build Reports
-      if: failure()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: gradle-failure-reports
+        name: build-out-log
         path: |
+          /tmp/build_out.log
           ${{ github.workspace }}/V2rayNG/app/build/reports/
-          /tmp/hs_err*
     - name: Upload APKs to Release
       if: success()
       run: |
