@@ -152,14 +152,13 @@ jobs:
           -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
-          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || {
-          echo "==== PRINTING GRADLE ERROR SUMMARY ===="
-          ./gradlew assemblePlaystoreRelease --info | grep -C 5 -E "(FAILED|error:|Exception)" | head -n 50
-          exit 1
-        }
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+    - name: Upload APKs to Release
+      if: success()
+      run: |
         TAG="${{ steps.tag.outputs.value }}"
         echo "=== UPLOADING APKs TO $TAG ==="
-        find app/build/outputs/ -type f -name "*.apk" | while read -r apk; do
+        find ${{ github.workspace }}/V2rayNG/app/build/outputs/ -type f -name "*.apk" | while read -r apk; do
           echo "Found APK: $apk"
           gh release upload "$TAG" "$apk" --clobber
         done
