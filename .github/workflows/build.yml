@@ -154,15 +154,6 @@ jobs:
         find ${{ github.workspace }} -type f -name "*.apk" -exec cp -v {} ${{ github.workspace }}/final-release-files/ \;
         echo "=== FINAL FILES ==="
         ls -la ${{ github.workspace }}/final-release-files/
-        TAG="${{ steps.tag.outputs.value }}"
-        echo "=== CREATING RELEASE AND UPLOADING DIRECTLY VIA GH CLI ==="
-        for apk in ${{ github.workspace }}/final-release-files/*.apk; do
-          if [ -f "$apk" ]; then
-            gh release upload "$TAG" "$apk" --clobber || true
-          fi
-        done
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Upload arm64-v8a APK
       uses: actions/upload-artifact@v4
@@ -198,6 +189,7 @@ jobs:
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
+      id: create_release
       with:
         files: |
           final-release-files/*.apk
@@ -215,6 +207,19 @@ jobs:
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Direct Upload to Release via gh cli
+      run: |
+        TAG="${{ steps.tag.outputs.value }}"
+        echo "=== UPLOADING TO RELEASE $TAG ==="
+        for apk in ${{ github.workspace }}/final-release-files/*.apk; do
+          if [ -f "$apk" ]; then
+            echo "Uploading $apk to $TAG"
+            gh release upload "$TAG" "$apk" --clobber
+          fi
+        done
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sign-and-release:
     needs: build
