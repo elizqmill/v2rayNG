@@ -140,11 +140,25 @@ jobs:
         cd ${{ github.workspace }}/V2rayNG
         echo "sdk.dir=${ANDROID_HOME}" > local.properties
         chmod 755 gradlew
-        ./gradlew assemblePlaystoreDebug --stacktrace
+        ./gradlew assemblePlaystoreRelease --stacktrace \
+          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
+        ./gradlew assembleFdroidRelease --stacktrace \
+          -Pandroid.injected.signing.store.file=${{ steps.android_keystore.outputs.filePath }} \
+          -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
+        mkdir -p ${{ github.workspace }}/final-release-files
+        find . -name "*.apk" -print -exec cp -v {} ${{ github.workspace }}/final-release-files/ \;
+        echo "=== FINAL FILES ==="
+        ls -la ${{ github.workspace }}/final-release-files/
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
+        files: ${{ github.workspace }}/final-release-files/*.apk
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
