@@ -153,6 +153,15 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
           -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }}
+
+    - name: Show Gradle Failure Report
+      if: failure()
+      run: |
+        find ${{ github.workspace }}/V2rayNG/app/build/reports/ -type f | while read -r f; do
+          echo "=== REPORT FILE: $f ==="
+          cat "$f" | head -n 100
+        done
+        find /tmp/ -name "hs_err*" -exec cat {} + || true
     - name: Upload APKs to Release
       if: success()
       run: |
