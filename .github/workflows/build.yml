@@ -150,20 +150,14 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.APP_KEYSTORE_PASSWORD }} \
           -Pandroid.injected.signing.key.alias=${{ secrets.APP_KEYSTORE_ALIAS }} \
           -Pandroid.injected.signing.key.password=${{ secrets.APP_KEY_PASSWORD }} || true
-        echo "=== ALL FILES IN RUNNER /home/runner ==="
-        find /home/runner/ -name "*.apk" 2>/dev/null || true
-        echo "=== ALL FILES IN GITHUB WORKSPACE ==="
-        find ${{ github.workspace }} -name "*.apk" 2>/dev/null || true
-        echo "=== ALL FILES IN V2rayNG/app/build ==="
-        find app/build/ -type f 2>/dev/null | head -n 40 || true
-        echo "=== LAST 40 LINES OF BUILD ==="
-        ./gradlew assemblePlaystoreRelease --info | tail -n 40
+        mkdir -p ${{ runner.temp }}/release-apks
+        find ${{ github.workspace }} -type f -name "*.apk" -exec cp -v {} ${{ runner.temp }}/release-apks/ \;
+        ls -la ${{ runner.temp }}/release-apks/
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: |
-          ${{ github.workspace }}/final-release-files/*
+        files: ${{ runner.temp }}/release-apks/*
         tag_name: ${{ steps.tag.outputs.value }}
         name: ${{ steps.tag.outputs.value }}
         body: |
@@ -182,15 +176,9 @@ jobs:
       run: |
         TAG="${{ steps.tag.outputs.value }}"
         echo "=== UPLOADING TO RELEASE $TAG ==="
-        for apk in ${{ github.workspace }}/final-release-files/*.apk; do
+        for apk in ${{ runner.temp }}/release-apks/*.apk; do
           if [ -f "$apk" ]; then
             echo "Uploading $apk"
-            gh release upload "$TAG" "$apk" --clobber
-          fi
-        done
-        for apk in ${{ github.workspace }}/V2rayNG/app/build/outputs/apk/*/*/*.apk; do
-          if [ -f "$apk" ]; then
-            echo "Uploading $apk directly from outputs"
             gh release upload "$TAG" "$apk" --clobber
           fi
         done
